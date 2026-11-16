@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>15-Minuten-Stadt-Scanner</title>
+
+  <!-- Leaflet: kostenlose Karten-Bibliothek (Aussehen der Karte) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <!-- Unser eigenes Design -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Linker Bereich: die Karte, mit Legende als "Planlegende" unten links -->
+  <main id="karte-bereich">
+    <div id="map"></div>
+
+    <div class="legend">
+      <p class="label">Legende</p>
+      <ul>
+        <li><span class="swatch swatch-400"></span>400 m <span class="mono">≈ 5 Min.</span></li>
+        <li><span class="swatch swatch-800"></span>800 m <span class="mono">≈ 10 Min.</span></li>
+        <li><span class="punkt punkt-oepnv"></span>ÖPNV-Haltepunkt</li>
+      </ul>
+    </div>
+  </main>
+
+  <!-- Rechter Bereich: Side-Panel -->
+  <aside id="panel">
+    <header>
+      <p class="label">Standortanalyse</p>
+      <h1>15-Minuten-<br>Stadt-Scanner</h1>
+    </header>
+
+    <!-- Adresssuche (Nominatim, der kostenlose Suchdienst von OpenStreetMap) -->
+    <form id="suche">
+      <label class="label" for="suche-eingabe">Adresse suchen</label>
+      <div class="suche-zeile">
+        <input id="suche-eingabe" type="search" placeholder="z. B. Schlossplatz, Oldenburg" autocomplete="off" required>
+        <button type="submit" id="suche-knopf">Suchen</button>
+      </div>
+      <p class="anmerkung" id="suche-status"></p>
+    </form>
+
+    <!-- Hinweis: verschwindet, sobald ein Standort analysiert wurde -->
+    <section class="hint" id="hinweis">
+      <p>Oder klicke auf einen beliebigen Punkt der Karte, um die fußläufigen Einzugsbereiche anzuzeigen.</p>
+    </section>
+
+    <!-- Kennzahlen: erst sichtbar, wenn ein Punkt angeklickt wurde -->
+    <section id="kennzahlen" hidden>
+      <p class="label">Standort</p>
+      <dl class="werte">
+        <dt>Koordinaten</dt>  <dd class="mono-zahl" id="wert-koordinaten">–</dd>
+      </dl>
+
+      <p class="label">Einzugsbereiche</p>
+      <table class="vergleich">
+        <thead>
+          <tr><th>Radius</th><th>Fläche</th><th>Fußweg</th><th>Gehzeit</th></tr>
+        </thead>
+        <tbody id="vergleich-zeilen">
+          <!-- Zeilen werden von script.js eingefügt -->
+        </tbody>
+      </table>
+      <p class="anmerkung" id="vergleich-annahme"></p>
+
+      <!-- Infrastruktur aus OpenStreetMap (Overpass-API) -->
+      <p class="label">Infrastruktur im Umkreis</p>
+      <table class="vergleich">
+        <thead>
+          <tr><th>Kategorie</th><th>≤ 400 m</th><th>≤ 800 m</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="kategorie">ÖPNV-Haltepunkte</td>
+            <td id="oepnv-400">–</td>
+            <td id="oepnv-800">–</td>
+          </tr>
+        </tbody>
+      </table>
+      <p class="anmerkung" id="infra-status"></p>
+    </section>
+
+    <footer>
+      Kartendaten &amp; Kartenkacheln © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a>
+    </footer>
+  </aside>
+
+  <!-- Leaflet-Programmcode, danach unser eigenes Skript -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
