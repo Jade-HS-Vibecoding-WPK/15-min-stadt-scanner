@@ -21,6 +21,9 @@
   - Schon erledigt (vorgezogen): Side-Panel mit Koordinaten, Flächen und Luftlinien-Vergleich (Umwegfaktor 1,3; 4,8 km/h) sowie Adresssuche (Nominatim). **Must-Bereich komplett.**
   - Vorgezogen: Online auf GitHub Pages → https://jade-hs-vibecoding-wpk.github.io/15-min-stadt-scanner/ (Änderungen per „Add file → Upload files“ hochladen).
   - Vorgezogen (Could): PNG-Export der Kartenansicht inkl. Legende, Maßstabsleiste und OSM-Namensnennung (doppelte Auflösung).
+  - Darstellung einstellbar (aufklappbar im Panel): Akzentfarbe, Kartenstil (hell-grau/farbig/dunkel), Füllung, Radien (100–1.500 m); wird im Browser gespeichert und in PNG/PDF/GeoJSON übernommen.
+  - GeoJSON-Export für QGIS: Standort, 400/800-m-Kreise (Flächen) und ÖPNV-Haltepunkte mit Attributen (WGS 84 / EPSG:4326); mit QGIS-GDAL geprüft.
+  - PDF-Export: Planblatt A3 quer (Karte + Plankopf mit Standort, Einzugsbereichen, ÖPNV-Zahlen, Datum, OSM-Quelle) via jsPDF.
   - Begonnen (Mi): ÖPNV-Haltepunkte per Overpass inkl. automatischer Wiederholung – live noch ungetestet, da Overpass am 16.11. überlastet war.
   - Layout geordnet: Panel passt ohne Scrollen auf 1280×800 (Legende als Planlegende auf der Karte, Flächen + Fußweg in einer Tabelle, Hinweistext verschwindet nach der Analyse).
 - [ ] **Di 17.11.:** UI-Design im Architektur-Layout polieren, Adresssuche einbauen, Radien-Darstellung verfeinern.

@@ -16,13 +16,14 @@
 
   <!-- Linker Bereich: die Karte, mit Legende als "Planlegende" unten links -->
   <main id="karte-bereich">
-    <div id="map"></div>
+    <div id="map" class="stil-grau"></div>
 
     <div class="legend">
       <p class="label">Legende</p>
       <ul>
-        <li><span class="swatch swatch-400"></span>400 m <span class="mono">≈ 5 Min.</span></li>
-        <li><span class="swatch swatch-800"></span>800 m <span class="mono">≈ 10 Min.</span></li>
+        <!-- Texte werden von script.js passend zu den eingestellten Radien gesetzt -->
+        <li><span class="swatch swatch-400"></span><span id="legende-innen">400 m</span> <span class="mono" id="legende-innen-min">≈ 5 Min.</span></li>
+        <li><span class="swatch swatch-800"></span><span id="legende-aussen">800 m</span> <span class="mono" id="legende-aussen-min">≈ 10 Min.</span></li>
         <li><span class="punkt punkt-oepnv"></span>ÖPNV-Haltepunkt</li>
       </ul>
     </div>
@@ -72,22 +73,69 @@
       <p class="label">Infrastruktur im Umkreis</p>
       <table class="vergleich">
         <thead>
-          <tr><th>Kategorie</th><th>≤ 400 m</th><th>≤ 800 m</th></tr>
+          <tr><th>Kategorie</th><th id="kopf-innen">≤ 400 m</th><th id="kopf-aussen">≤ 800 m</th></tr>
         </thead>
         <tbody>
           <tr>
             <td class="kategorie">ÖPNV-Haltepunkte</td>
-            <td id="oepnv-400">–</td>
-            <td id="oepnv-800">–</td>
+            <td id="oepnv-innen">–</td>
+            <td id="oepnv-aussen">–</td>
           </tr>
         </tbody>
       </table>
       <p class="anmerkung" id="infra-status"></p>
     </section>
 
+    <!-- Darstellung: aufklappbar (<details>), damit das Panel aufgeräumt bleibt -->
+    <details id="darstellung">
+      <summary class="label">Darstellung</summary>
+
+      <div class="einstellung">
+        <span class="einstellung-name">Akzentfarbe</span>
+        <div class="farb-zeile">
+          <button type="button" class="farbfeld" data-farbe="#FF4F00" title="International Orange" style="background:#FF4F00"></button>
+          <button type="button" class="farbfeld" data-farbe="#0047AB" title="Kobaltblau" style="background:#0047AB"></button>
+          <button type="button" class="farbfeld" data-farbe="#00875A" title="Grün" style="background:#00875A"></button>
+          <button type="button" class="farbfeld" data-farbe="#111111" title="Schwarz" style="background:#111111"></button>
+          <input type="color" id="farbe-frei" title="Eigene Farbe wählen">
+        </div>
+      </div>
+
+      <div class="einstellung">
+        <label class="einstellung-name" for="kartenstil">Kartenstil</label>
+        <select id="kartenstil">
+          <option value="grau">Hell-grau</option>
+          <option value="farbig">Farbig</option>
+          <option value="dunkel">Dunkel</option>
+        </select>
+      </div>
+
+      <div class="einstellung">
+        <label class="einstellung-name" for="deckkraft">Füllung innen</label>
+        <input type="range" id="deckkraft" min="0" max="50" step="5">
+        <span class="mono-zahl" id="deckkraft-wert">10 %</span>
+      </div>
+
+      <div class="einstellung">
+        <span class="einstellung-name">Radien</span>
+        <input type="number" id="radius-innen" min="100" max="1500" step="50" aria-label="Innerer Radius in Metern">
+        <span>/</span>
+        <input type="number" id="radius-aussen" min="100" max="1500" step="50" aria-label="Äußerer Radius in Metern">
+        <span>m</span>
+      </div>
+
+      <p class="anmerkung" id="darstellung-status"></p>
+      <button type="button" id="zuruecksetzen" class="link-knopf">Standard wiederherstellen</button>
+    </details>
+
     <!-- Export der Kartenansicht als Bild fürs Poster -->
     <section id="export">
-      <button type="button" id="export-knopf" class="knopf-umriss">Karte als PNG speichern</button>
+      <p class="label">Export</p>
+      <div class="knopf-zeile">
+        <button type="button" id="export-knopf" class="knopf-umriss" title="Kartenansicht als Bild">PNG</button>
+        <button type="button" id="pdf-knopf" class="knopf-umriss" title="Planblatt A3 quer mit Kennzahlen">PDF A3</button>
+        <button type="button" id="geojson-knopf" class="knopf-umriss" title="Geodaten für QGIS: Standort, Kreise, Haltepunkte">GeoJSON</button>
+      </div>
       <p class="anmerkung" id="export-status"></p>
     </section>
 
@@ -100,6 +148,8 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <!-- html-to-image: macht aus einem Bereich der Seite ein PNG (für den Export) -->
   <script src="https://unpkg.com/html-to-image@1.11.13/dist/html-to-image.js"></script>
+  <!-- jsPDF: erstellt PDF-Dateien direkt im Browser (für das Planblatt) -->
+  <script src="https://unpkg.com/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
