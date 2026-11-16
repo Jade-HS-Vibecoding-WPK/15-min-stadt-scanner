@@ -51,11 +51,13 @@ const UMWEGFAKTOR = 1.3;          // echter Fußweg ist ca. 30 % länger als Luf
 const GEHTEMPO_KMH = 4.8;         // übliche Gehgeschwindigkeit
 const GEHTEMPO_M_PRO_MIN = GEHTEMPO_KMH * 1000 / 60;  // = 80 m pro Minute
 
-// Overpass-API: kostenloser Abfragedienst für OpenStreetMap-Daten.
-// Die Server sind manchmal ausgelastet – dann wird der nächste probiert.
-const OVERPASS_SERVER = [
-  'https://overpass-api.de/api/interpreter',
-  'https://overpass.private.coffee/api/interpreter'
+// Kategorien der Infrastruktur (Daten: daten/oldenburg-osm.js)
+//   form: wie die Orte auf der Karte und in der Legende aussehen
+const KATEGORIEN = [
+  { id: 'oepnv',      name: 'ÖPNV-Haltepunkte',     form: 'kreis' },
+  { id: 'versorgung', name: 'Supermärkte & Bäcker', form: 'quadrat' },
+  { id: 'bildung',    name: 'Kitas & Schulen',      form: 'dreieck' },
+  { id: 'gruen',      name: 'Parks',                form: 'flaeche' }
 ];
 
 // 1) Karte erzeugen und auf Oldenburg zentrieren
@@ -100,13 +102,16 @@ function faerbeKreise() {
   if (kreisInnen) kreisInnen.setStyle({ color: farbe, fillColor: farbe, fillOpacity: einstellungen.deckkraft });
   if (standortMarker) standortMarker.setStyle({ fillColor: farbe });
 
-  // Haltepunkte: auf dunkler Karte hell, sonst schwarz
+  // Infrastruktur: auf dunkler Karte hell, sonst schwarz
+  document.getElementById('map').style.setProperty('--poi-farbe', poiFarbe());
   analyse.eachLayer(function (ebene) {
-    if (ebene.options.className === 'haltepunkt') ebene.setStyle({ fillColor: haltepunktFarbe() });
+    if (ebene.options.className === 'park') {
+      ebene.setStyle({ fillColor: poiFarbe(), fillOpacity: einstellungen.kartenstil === 'dunkel' ? 0.25 : 0.15 });
+    }
   });
 }
 
-function haltepunktFarbe() {
+function poiFarbe() {
   return einstellungen.kartenstil === 'dunkel' ? '#F8F8F6' : INK;
 }
 
@@ -148,136 +153,153 @@ function analysiereStandort(punkt) {
   // Kennzahlen im Side-Panel aktualisieren
   zeigeKennzahlen(punkt);
 
-  // Echte Infrastruktur-Daten aus OpenStreetMap nachladen
-  ladeOepnv(punkt);
+  // Infrastruktur aus den mitgelieferten OSM-Daten zählen
+  zaehleInfrastruktur(punkt);
 }
 
 // ------------------------------------------------------------
-// Infrastruktur: ÖPNV-Haltepunkte über die Overpass-API laden
+// Infrastruktur zählen – aus der mitgelieferten Datei
+// daten/oldenburg-osm.js (OpenStreetMap-Auszug, einmal heruntergeladen).
+// Vorteil: kein Server nötig, sofort fertig, immer verfügbar.
+// Nachteil: gilt nur für das Datengebiet (Oldenburg + Umland).
 // ------------------------------------------------------------
 let standortMarker = null;   // damit der Standort-Punkt oben bleibt
-let letzteHaltepunkte = null; // zuletzt geladene Haltepunkte (null = noch keine)
-let anfrageNummer = 0;       // zählt Anfragen mit (siehe unten)
+let letzteOrte = null;       // zuletzt gefundene Orte (für den GeoPackage-Export)
 
-async function ladeOepnv(punkt) {
-  // Jede Analyse bekommt eine Nummer. Klickt man schnell zweimal,
-  // kommt die alte Antwort evtl. später an – die ignorieren wir dann.
-  const meineNummer = ++anfrageNummer;
-
-  letzteHaltepunkte = null;   // alte Daten verwerfen (für GeoJSON-Export)
-
+function zaehleInfrastruktur(punkt) {
   const rInnen = einstellungen.radiusInnen;
   const rAussen = einstellungen.radiusAussen;
-  const zelleInnen = document.getElementById('oepnv-innen');
-  const zelleAussen = document.getElementById('oepnv-aussen');
   const status = document.getElementById('infra-status');
-  zelleInnen.textContent = '…';
-  zelleAussen.textContent = '…';
-  status.textContent = 'Lade Daten aus OpenStreetMap …';
+  letzteOrte = null;
 
-  // Abfrage in der Overpass-Sprache: alle Bus-, Tram- und Bahn-
-  // Haltepunkte im Umkreis des äußeren Kreises
-  const umkreis = '(around:' + rAussen + ',' + punkt.lat + ',' + punkt.lng + ')';
-  const abfrage =
-    '[out:json][timeout:25];(' +
-    'node["highway"="bus_stop"]' + umkreis + ';' +
-    'node["public_transport"="platform"]' + umkreis + ';' +
-    'node["railway"~"^(station|halt|tram_stop)$"]' + umkreis + ';' +
-    ');out body;';
-
-  try {
-    // Bis zu 3 Versuche. Ist der Server voll, warten wir kurz und
-    // probieren es erneut – jedes Mal doppelt so lange (5 s, dann 10 s).
-    // So empfiehlt es der Overpass-Server selbst.
-    let daten = null;
-    let wartezeit = 5;
-    for (let versuch = 1; versuch <= 3; versuch++) {
-      try {
-        daten = await overpassAbfrage(abfrage);
-        break;
-      } catch (fehler) {
-        if (versuch === 3) throw fehler;
-        if (meineNummer !== anfrageNummer) return;
-        status.textContent = 'Server ausgelastet – neuer Versuch in ' + wartezeit + ' s …';
-        await warte(wartezeit);
-        if (meineNummer !== anfrageNummer) return;
-        status.textContent = 'Lade Daten aus OpenStreetMap … (Versuch ' + (versuch + 1) + ' von 3)';
-        wartezeit = wartezeit * 2;
-      }
-    }
-
-    // Inzwischen wurde woanders geklickt? Dann nichts mehr tun.
-    if (meineNummer !== anfrageNummer) return;
-
-    let anzahlInnen = 0;
-    let anzahlAussen = 0;
-    const gefunden = [];
-
-    daten.elements.forEach(function (element) {
-      const ort = L.latLng(element.lat, element.lon);
-      const entfernung = map.distance(punkt, ort); // Luftlinie in Metern
-
-      if (entfernung <= rAussen) anzahlAussen++;
-      if (entfernung <= rInnen) anzahlInnen++;
-
-      // für den GeoJSON-Export merken
-      gefunden.push({
-        lat: element.lat,
-        lon: element.lon,
-        name: (element.tags && element.tags.name) || '',
-        entfernung: entfernung,
-        osmId: element.type + '/' + element.id
-      });
-
-      // Punkt auf die Karte zeichnen (klein, schwarz)
-      const kreis = L.circleMarker(ort, {
-        radius: 3.5,
-        stroke: false,
-        className: 'haltepunkt',
-        fillColor: haltepunktFarbe(),   // schwarz, auf dunkler Karte hell
-        fillOpacity: 1
-      }).addTo(analyse);
-
-      // Name beim Darüberfahren mit der Maus anzeigen
-      const name = document.createElement('span');
-      name.textContent = (element.tags && element.tags.name) || 'Haltepunkt';
-      kreis.bindTooltip(name, { direction: 'top' });
+  // Daten nicht geladen oder Standort außerhalb des Datengebiets?
+  if (!window.OSM_DATEN || !imDatengebiet(punkt)) {
+    KATEGORIEN.forEach(function (kat) {
+      document.getElementById('anz-' + kat.id + '-innen').textContent = '–';
+      document.getElementById('anz-' + kat.id + '-aussen').textContent = '–';
     });
-
-    letzteHaltepunkte = gefunden;
-    zelleInnen.textContent = anzahlInnen;
-    zelleAussen.textContent = anzahlAussen;
-    status.textContent = '';
-    if (standortMarker) standortMarker.bringToFront();
-  } catch (fehler) {
-    if (meineNummer !== anfrageNummer) return;
-    zelleInnen.textContent = '–';
-    zelleAussen.textContent = '–';
-    status.textContent = 'Daten gerade nicht abrufbar – die kostenlosen Overpass-Server sind ausgelastet. Bitte in ein paar Minuten erneut klicken.';
+    status.textContent = window.OSM_DATEN
+      ? 'Außerhalb des Datengebiets – Infrastruktur nur für Oldenburg und Umgebung verfügbar.'
+      : 'Infrastruktur-Daten konnten nicht geladen werden.';
+    return;
   }
+
+  // Zähler für jede Kategorie vorbereiten
+  const zaehler = {};
+  KATEGORIEN.forEach(function (kat) { zaehler[kat.id] = { innen: 0, aussen: 0 }; });
+  const gefunden = [];
+
+  OSM_DATEN.features.forEach(function (ort) {
+    // Schneller Vorab-Test: grob zu weit weg? Dann gar nicht genau rechnen.
+    if (!grobInDerNaehe(ort, punkt, rAussen)) return;
+
+    const entfernung = entfernungZu(ort, punkt);   // Luftlinie in Metern
+    if (entfernung > rAussen) return;
+
+    const kat = ort.properties.kat;
+    zaehler[kat].aussen++;
+    if (entfernung <= rInnen) zaehler[kat].innen++;
+    gefunden.push({ ort: ort, entfernung: entfernung });
+
+    zeichneOrt(ort);
+  });
+
+  // Ergebnisse ins Panel schreiben
+  KATEGORIEN.forEach(function (kat) {
+    document.getElementById('anz-' + kat.id + '-innen').textContent = zaehler[kat.id].innen;
+    document.getElementById('anz-' + kat.id + '-aussen').textContent = zaehler[kat.id].aussen;
+  });
+  status.textContent = 'OSM-Datenstand ' + OSM_DATEN.datenstand + ' · Parks: Rand im Radius';
+
+  letzteOrte = gefunden;
+  faerbeKreise();
+  if (standortMarker) standortMarker.bringToFront();
 }
 
-// Kleine Hilfe: eine bestimmte Anzahl Sekunden abwarten
-function warte(sekunden) {
-  return new Promise(function (fertig) { setTimeout(fertig, sekunden * 1000); });
+// Liegt der Punkt im ausgeschnittenen Gebiet? gebiet = [West, Süd, Ost, Nord]
+function imDatengebiet(punkt) {
+  const g = OSM_DATEN.gebiet;
+  return punkt.lng >= g[0] && punkt.lng <= g[2] && punkt.lat >= g[1] && punkt.lat <= g[3];
 }
 
-// Schickt eine Abfrage an die Overpass-Server – der Reihe nach,
-// bis einer antwortet. Pro Server warten wir höchstens 15 Sekunden.
-async function overpassAbfrage(abfrage) {
-  for (const server of OVERPASS_SERVER) {
-    try {
-      const antwort = await fetch(server, {
-        method: 'POST',
-        body: new URLSearchParams({ data: abfrage }),
-        signal: AbortSignal.timeout(15000)
-      });
-      if (antwort.ok) return await antwort.json();
-    } catch (fehler) {
-      // Server nicht erreichbar oder zu langsam → nächsten probieren
+// Grober Test über die Koordinaten (1° Breite ≈ 111 km), damit nicht für
+// tausende Orte genau gerechnet werden muss
+function grobInDerNaehe(ort, punkt, radius) {
+  const rand = (radius + 3000) / 111000;   // 3 km Puffer für große Parks
+  const c = ersterPunkt(ort.geometry);
+  return Math.abs(c[1] - punkt.lat) < rand && Math.abs(c[0] - punkt.lng) < rand * 1.7;
+}
+
+// Entfernung vom Standort zum Ort in Metern.
+//   Punkte: direkte Luftlinie.
+//   Parks (Flächen): 0, wenn der Standort im Park liegt –
+//   sonst Entfernung zur nächsten Ecke des Park-Umrisses.
+function entfernungZu(ort, punkt) {
+  const geo = ort.geometry;
+  if (geo.type === 'Point') {
+    return map.distance(punkt, L.latLng(geo.coordinates[1], geo.coordinates[0]));
+  }
+  const polygone = geo.type === 'Polygon' ? [geo.coordinates] : geo.coordinates;
+  let minimum = Infinity;
+  polygone.forEach(function (polygon) {
+    if (punktInPolygon(punkt, polygon)) minimum = 0;
+    polygon[0].forEach(function (ecke) {
+      minimum = Math.min(minimum, map.distance(punkt, L.latLng(ecke[1], ecke[0])));
+    });
+  });
+  return minimum;
+}
+
+// Liegt der Punkt in der Fläche? (Strahl-Methode; Löcher werden beachtet)
+function punktInPolygon(punkt, polygon) {
+  function imRing(ring) {
+    let drin = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+      if (((yi > punkt.lat) !== (yj > punkt.lat)) &&
+          (punkt.lng < (xj - xi) * (punkt.lat - yi) / (yj - yi) + xi)) drin = !drin;
     }
+    return drin;
   }
-  throw new Error('Kein Overpass-Server erreichbar');
+  if (!imRing(polygon[0])) return false;
+  for (let k = 1; k < polygon.length; k++) if (imRing(polygon[k])) return false;
+  return true;
+}
+
+// Erste Koordinate einer Geometrie (für den groben Test)
+function ersterPunkt(geo) {
+  if (geo.type === 'Point') return geo.coordinates;
+  if (geo.type === 'Polygon') return geo.coordinates[0][0];
+  return geo.coordinates[0][0][0];   // MultiPolygon
+}
+
+// Einen Ort auf die Karte zeichnen
+function zeichneOrt(ort) {
+  const kat = ort.properties.kat;
+  const name = document.createElement('span');
+  name.textContent = ort.properties.name || KATEGORIEN.find(function (k) { return k.id === kat; }).name;
+
+  if (kat === 'gruen') {
+    // Parks als graue Fläche ohne Rand
+    L.geoJSON(ort, {
+      style: { stroke: false, fillColor: poiFarbe(), fillOpacity: 0.15, className: 'park' },
+      interactive: true
+    }).eachLayer(function (ebene) {
+      ebene.options.className = 'park';
+      ebene.bindTooltip(name, { sticky: true });
+      ebene.addTo(analyse);
+    });
+    return;
+  }
+
+  // Punkte als kleine Symbole (Kreis, Quadrat, Dreieck) – siehe style.css
+  const form = KATEGORIEN.find(function (k) { return k.id === kat; }).form;
+  const symbol = L.marker([ort.geometry.coordinates[1], ort.geometry.coordinates[0]], {
+    icon: L.divIcon({ className: 'poi poi-' + form, iconSize: [8, 8] }),
+    keyboard: false
+  });
+  symbol.bindTooltip(name, { direction: 'top' });
+  symbol.addTo(analyse);
 }
 
 // ------------------------------------------------------------
@@ -537,18 +559,23 @@ pdfKnopf.addEventListener('click', async function () {
       'bis ' + deutsch(einstellungen.radiusInnen, 0) + ' m',
       'bis ' + deutsch(einstellungen.radiusAussen, 0) + ' m'], spalten2, y);
     y += 6;
-    tabellenZeile(pdf, [
-      'ÖPNV-Haltepunkte',
-      zahlOderStrich('oepnv-innen'),
-      zahlOderStrich('oepnv-aussen')
-    ], spalten2, x, xr, y, true);
+    KATEGORIEN.forEach(function (kat) {
+      tabellenZeile(pdf, [
+        kat.name,
+        zahlOderStrich('anz-' + kat.id + '-innen'),
+        zahlOderStrich('anz-' + kat.id + '-aussen')
+      ], spalten2, x, xr, y, true);
+      y += 7;
+    });
+    grauerText(pdf, 'Parks zählen, wenn ihr Rand im Radius liegt.', x, y, false);
 
     // 5) Fußzeile unten im Plankopf: Datum + Quellen (Lizenzpflicht!)
     let yu = BLATT_H - RAND - 14;
     pdf.setDrawColor(17, 17, 17);
     pdf.setLineWidth(0.3);
     pdf.line(x, yu - 5, xr, yu - 5);
-    grauerText(pdf, 'Erstellt am ' + new Date().toLocaleDateString('de-DE'), x, yu, false);
+    const stand = window.OSM_DATEN ? ', Datenstand ' + OSM_DATEN.datenstand : '';
+    grauerText(pdf, 'Erstellt am ' + new Date().toLocaleDateString('de-DE') + stand, x, yu, false);
     grauerText(pdf, 'Kartendaten & Kartenkacheln © OpenStreetMap-Mitwirkende', x, yu + 4.5, false);
     grauerText(pdf, '(ODbL, openstreetmap.org/copyright)', x, yu + 9, false);
 
@@ -622,112 +649,280 @@ function zahlOderStrich(id) {
 }
 
 // ------------------------------------------------------------
-// Export: GeoJSON für QGIS
-//   GeoJSON ist ein offenes Geodaten-Format (Textdatei). QGIS
-//   öffnet es per Drag & Drop. Koordinatensystem: WGS 84
-//   (EPSG:4326, Längen-/Breitengrade) – so schreibt es der
-//   GeoJSON-Standard vor.
-//   Inhalt: Standort (Punkt), innerer/äußerer Kreis (Flächen),
-//           ÖPNV-Haltepunkte (Punkte) mit Attributen.
-//   Attributnamen max. 10 Zeichen, damit sie auch beim
-//   Weiterspeichern als Shapefile vollständig bleiben.
+// Export: GeoPackage für QGIS
+//   GeoPackage (.gpkg) ist das Standard-Format von QGIS: eine
+//   einzige Datei mit mehreren Ebenen (Layern). Wir speichern
+//   direkt im amtlichen Koordinatensystem für Niedersachsen:
+//   ETRS89 / UTM Zone 32N (EPSG:25832) – Einheit Meter, also
+//   stimmen Flächen und Längen in QGIS sofort.
+//
+//   Ebenen:  standort         (Punkt)
+//            einzugsbereiche  (Fläche: innerer + äußerer Kreis)
+//            infrastruktur    (Punkte: ÖPNV, Versorgung, Bildung)
+//            parks            (Flächen)
+//
+//   Technik: Eine GeoPackage-Datei ist eine SQLite-Datenbank.
+//   sql.js (SQLite im Browser) und proj4 (Umrechnung der
+//   Koordinaten) werden erst beim ersten Klick geladen.
 // ------------------------------------------------------------
 const OSM_QUELLE = '© OpenStreetMap-Mitwirkende, ODbL';
+const EPSG_25832 = '+proj=utm +zone=32 +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs';
+const WKT_25832 = 'PROJCS["ETRS89 / UTM zone 32N",GEOGCS["ETRS89",DATUM["European_Terrestrial_Reference_System_1989",SPHEROID["GRS 1980",6378137,298.257222101,AUTHORITY["EPSG","7019"]],AUTHORITY["EPSG","6258"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AUTHORITY["EPSG","4258"]],PROJECTION["Transverse_Mercator"],PARAMETER["latitude_of_origin",0],PARAMETER["central_meridian",9],PARAMETER["scale_factor",0.9996],PARAMETER["false_easting",500000],PARAMETER["false_northing",0],UNIT["metre",1,AUTHORITY["EPSG","9001"]],AXIS["Easting",EAST],AXIS["Northing",NORTH],AUTHORITY["EPSG","25832"]]';
+const SQLJS_URL = 'https://unpkg.com/sql.js@1.16.0/dist/';
+const PROJ4_URL = 'https://unpkg.com/proj4@2.23.0/dist/proj4.js';
 
-document.getElementById('geojson-knopf').addEventListener('click', function () {
+const gpkgKnopf = document.getElementById('gpkg-knopf');
+
+gpkgKnopf.addEventListener('click', async function () {
   if (!letzterPunkt) {
     exportStatus.textContent = 'Bitte zuerst einen Standort wählen (Klick auf die Karte oder Adresssuche).';
     return;
   }
+  gpkgKnopf.disabled = true;
+  exportStatus.textContent = 'GeoPackage wird erstellt …';
 
-  const features = [];
+  try {
+    // 1) Werkzeuge nachladen (nur beim ersten Mal)
+    await ladeSkript(SQLJS_URL + 'sql-wasm.js');
+    await ladeSkript(PROJ4_URL);
+    const SQL = await initSqlJs({ locateFile: function (datei) { return SQLJS_URL + datei; } });
+    const zuUtm = proj4('EPSG:4326', EPSG_25832);   // [Länge, Breite] → [Ost, Nord] in Metern
 
-  // 1) Standort als Punkt
-  features.push(punktFeature(letzterPunkt.lat, letzterPunkt.lng, {
-    typ: 'Standort',
-    name: letzteAdresse || '',
-    lat: runde(letzterPunkt.lat, 6),
-    lon: runde(letzterPunkt.lng, 6)
-  }));
+    // 2) Leere GeoPackage-Datenbank mit den Pflicht-Tabellen
+    const db = new SQL.Database();
+    erstelleGpkgGrundgeruest(db);
 
-  // 2) Gehzeit-Kreise als Flächen (großer zuerst, damit der kleine oben liegt)
-  [einstellungen.radiusAussen, einstellungen.radiusInnen].forEach(function (radius) {
-    const fussweg = radius * UMWEGFAKTOR;
-    features.push({
-      type: 'Feature',
-      properties: {
-        typ: 'Einzugsbereich',
-        radius_m: radius,
-        luft_min: runde(radius / GEHTEMPO_M_PRO_MIN, 1),   // Gehzeit Luftlinie
-        flaeche_ha: runde(kreisflaeche(radius) / 10000, 1),
-        fussweg_m: Math.round(fussweg),                      // mit Umwegfaktor
-        geh_min: runde(fussweg / GEHTEMPO_M_PRO_MIN, 1),     // realistische Gehzeit
-        umwegfakt: UMWEGFAKTOR
-      },
-      geometry: { type: 'Polygon', coordinates: [kreisPolygon(letzterPunkt, radius, 128)] }
+    // 3) Ebene "standort"
+    const mitte = zuUtm.forward([letzterPunkt.lng, letzterPunkt.lat]);
+    neueEbene(db, 'standort', 'POINT', 'Analysierter Standort',
+      'name TEXT, lat REAL, lon REAL, ost_m REAL, nord_m REAL');
+    fuegeEin(db, 'standort', wkbPunkt(mitte), {
+      name: letzteAdresse || '',
+      lat: runde(letzterPunkt.lat, 6), lon: runde(letzterPunkt.lng, 6),
+      ost_m: runde(mitte[0], 1), nord_m: runde(mitte[1], 1)
     });
-  });
 
-  // 3) ÖPNV-Haltepunkte (nur wenn sie geladen werden konnten)
-  (letzteHaltepunkte || []).forEach(function (hp) {
-    features.push(punktFeature(hp.lat, hp.lon, {
-      typ: 'ÖPNV-Haltepunkt',
-      name: hp.name,
-      entf_m: Math.round(hp.entfernung),
-      im_innen: hp.entfernung <= einstellungen.radiusInnen ? 1 : 0,   // 1 = im inneren Kreis
-      osm_id: hp.osmId,
-      quelle: OSM_QUELLE
-    }));
-  });
+    // 4) Ebene "einzugsbereiche" – Kreise direkt in Metern berechnet
+    neueEbene(db, 'einzugsbereiche', 'POLYGON', 'Fußläufige Einzugsbereiche (Luftlinie)',
+      'radius_m INTEGER, luft_min REAL, flaeche_ha REAL, fussweg_m INTEGER, geh_min REAL, umwegfakt REAL');
+    [einstellungen.radiusAussen, einstellungen.radiusInnen].forEach(function (radius) {
+      const fussweg = radius * UMWEGFAKTOR;
+      fuegeEin(db, 'einzugsbereiche', wkbPolygone([[utmKreis(mitte, radius, 128)]]), {
+        radius_m: radius,
+        luft_min: runde(radius / GEHTEMPO_M_PRO_MIN, 1),
+        flaeche_ha: runde(kreisflaeche(radius) / 10000, 1),
+        fussweg_m: Math.round(fussweg),
+        geh_min: runde(fussweg / GEHTEMPO_M_PRO_MIN, 1),
+        umwegfakt: UMWEGFAKTOR
+      });
+    });
 
-  const geojson = {
-    type: 'FeatureCollection',
-    name: 'stadt_scanner',
-    features: features
-  };
+    // 5) Ebenen "infrastruktur" (Punkte) und "parks" (Flächen)
+    const spalten = 'kat TEXT, typ TEXT, name TEXT, entf_m INTEGER, im_innen INTEGER, osm_id TEXT, quelle TEXT';
+    neueEbene(db, 'infrastruktur', 'POINT', 'ÖPNV, Supermärkte & Bäcker, Kitas & Schulen', spalten);
+    neueEbene(db, 'parks', 'MULTIPOLYGON', 'Parks (OpenStreetMap)', spalten);
+    const quelle = OSM_QUELLE + (window.OSM_DATEN ? ', Stand ' + OSM_DATEN.datenstand : '');
 
-  // Als Datei herunterladen, z. B. "stadt-scanner-2026-11-16.geojson"
-  const datei = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/geo+json' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(datei);
-  link.download = 'stadt-scanner-' + new Date().toISOString().slice(0, 10) + '.geojson';
-  link.click();
-  setTimeout(function () { URL.revokeObjectURL(link.href); }, 10000);
+    (letzteOrte || []).forEach(function (fund) {
+      const p = fund.ort.properties;
+      const g = fund.ort.geometry;
+      const werte = {
+        kat: p.kat,
+        typ: KATEGORIEN.find(function (k) { return k.id === p.kat; }).name,
+        name: p.name || '',
+        entf_m: Math.round(fund.entfernung),
+        im_innen: fund.entfernung <= einstellungen.radiusInnen ? 1 : 0,
+        osm_id: p.osm_id,
+        quelle: quelle
+      };
+      if (g.type === 'Point') {
+        fuegeEin(db, 'infrastruktur', wkbPunkt(zuUtm.forward(g.coordinates)), werte);
+      } else {
+        const polygone = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+        const umgerechnet = polygone.map(function (polygon) {
+          return polygon.map(function (ring) { return ring.map(function (c) { return zuUtm.forward(c); }); });
+        });
+        fuegeEin(db, 'parks', wkbPolygone(umgerechnet, true), werte);
+      }
+    });
 
-  exportStatus.textContent = letzteHaltepunkte
-    ? 'GeoJSON gespeichert (Standort, Kreise, ' + letzteHaltepunkte.length + ' Haltepunkte).'
-    : 'GeoJSON gespeichert – ohne Haltepunkte, da diese nicht geladen werden konnten.';
+    aktualisiereAusdehnung(db);
+
+    // 6) Als Datei herunterladen, z. B. "stadt-scanner-2026-11-16.gpkg"
+    const datei = new Blob([db.export()], { type: 'application/geopackage+sqlite3' });
+    db.close();
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(datei);
+    link.download = 'stadt-scanner-' + new Date().toISOString().slice(0, 10) + '.gpkg';
+    link.click();
+    setTimeout(function () { URL.revokeObjectURL(link.href); }, 10000);
+
+    exportStatus.textContent = letzteOrte
+      ? 'GeoPackage gespeichert (4 Ebenen, ' + letzteOrte.length + ' Orte, EPSG:25832).'
+      : 'GeoPackage gespeichert – ohne Infrastruktur (außerhalb des Datengebiets).';
+  } catch (fehler) {
+    exportStatus.textContent = 'GeoPackage-Export fehlgeschlagen. Bitte Internetverbindung prüfen und erneut versuchen.';
+  } finally {
+    gpkgKnopf.disabled = false;
+  }
 });
 
-// --- kleine Helfer für den GeoJSON-Export ---
+// --- Helfer für den GeoPackage-Export ---
 
-// Ein Punkt-Feature. Achtung: GeoJSON erwartet [Länge, Breite]!
-function punktFeature(lat, lon, eigenschaften) {
-  return {
-    type: 'Feature',
-    properties: eigenschaften,
-    geometry: { type: 'Point', coordinates: [runde(lon, 7), runde(lat, 7)] }
-  };
+// Ein Skript aus dem Internet nachladen (nur einmal)
+function ladeSkript(url) {
+  if (document.querySelector('script[src="' + url + '"]')) return Promise.resolve();
+  return new Promise(function (fertig, fehler) {
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload = fertig;
+    s.onerror = fehler;
+    document.head.appendChild(s);
+  });
 }
 
-// Kreis als Vieleck mit n Ecken berechnen (auf der Erdkugel, Radius in Metern).
-// Formel: "Zielpunkt bei gegebener Entfernung und Richtung".
-function kreisPolygon(mitte, radius, n) {
-  const ERDRADIUS = 6371008.8;
-  const lat1 = mitte.lat * Math.PI / 180;
-  const lon1 = mitte.lng * Math.PI / 180;
-  const winkel = radius / ERDRADIUS;
+// Pflicht-Tabellen nach dem GeoPackage-Standard (OGC, Version 1.3)
+function erstelleGpkgGrundgeruest(db) {
+  db.run('PRAGMA application_id = 1196444487');   // = "GPKG"
+  db.run('PRAGMA user_version = 10300');           // Version 1.3.0
+  db.run('CREATE TABLE gpkg_spatial_ref_sys (srs_name TEXT NOT NULL, srs_id INTEGER PRIMARY KEY, ' +
+         'organization TEXT NOT NULL, organization_coordsys_id INTEGER NOT NULL, ' +
+         'definition TEXT NOT NULL, description TEXT)');
+  db.run('INSERT INTO gpkg_spatial_ref_sys VALUES (?,?,?,?,?,?)',
+    ['Undefined cartesian SRS', -1, 'NONE', -1, 'undefined', 'undefined cartesian coordinate reference system']);
+  db.run('INSERT INTO gpkg_spatial_ref_sys VALUES (?,?,?,?,?,?)',
+    ['Undefined geographic SRS', 0, 'NONE', 0, 'undefined', 'undefined geographic coordinate reference system']);
+  db.run('INSERT INTO gpkg_spatial_ref_sys VALUES (?,?,?,?,?,?)',
+    ['WGS 84 geodetic', 4326, 'EPSG', 4326,
+     'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0,AUTHORITY["EPSG","8901"]],UNIT["degree",0.0174532925199433,AUTHORITY["EPSG","9122"]],AXIS["Latitude",NORTH],AXIS["Longitude",EAST],AUTHORITY["EPSG","4326"]]',
+     'longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid']);
+  db.run('INSERT INTO gpkg_spatial_ref_sys VALUES (?,?,?,?,?,?)',
+    ['ETRS89 / UTM zone 32N', 25832, 'EPSG', 25832, WKT_25832, null]);
+  db.run('CREATE TABLE gpkg_contents (table_name TEXT NOT NULL PRIMARY KEY, data_type TEXT NOT NULL, ' +
+         'identifier TEXT UNIQUE, description TEXT DEFAULT \'\', ' +
+         'last_change DATETIME NOT NULL DEFAULT (strftime(\'%Y-%m-%dT%H:%M:%fZ\',\'now\')), ' +
+         'min_x DOUBLE, min_y DOUBLE, max_x DOUBLE, max_y DOUBLE, srs_id INTEGER, ' +
+         'CONSTRAINT fk_gc_r_srs_id FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys(srs_id))');
+  db.run('CREATE TABLE gpkg_geometry_columns (table_name TEXT NOT NULL, column_name TEXT NOT NULL, ' +
+         'geometry_type_name TEXT NOT NULL, srs_id INTEGER NOT NULL, z TINYINT NOT NULL, m TINYINT NOT NULL, ' +
+         'CONSTRAINT pk_geom_cols PRIMARY KEY (table_name, column_name), ' +
+         'CONSTRAINT fk_gc_tn FOREIGN KEY (table_name) REFERENCES gpkg_contents(table_name), ' +
+         'CONSTRAINT fk_gc_srs FOREIGN KEY (srs_id) REFERENCES gpkg_spatial_ref_sys (srs_id))');
+}
+
+// Eine neue Ebene (Tabelle) anlegen und im Inhaltsverzeichnis eintragen
+function neueEbene(db, name, geometrieTyp, beschreibung, spalten) {
+  db.run('CREATE TABLE "' + name + '" (fid INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, geom ' +
+         geometrieTyp + ', ' + spalten + ')');
+  db.run('INSERT INTO gpkg_contents (table_name, data_type, identifier, description, srs_id) VALUES (?,?,?,?,?)',
+    [name, 'features', name, beschreibung, 25832]);
+  db.run('INSERT INTO gpkg_geometry_columns VALUES (?,?,?,?,?,?)', [name, 'geom', geometrieTyp, 25832, 0, 0]);
+}
+
+// Ein Objekt (Geometrie + Attribute) in eine Ebene schreiben
+function fuegeEin(db, ebene, geometrie, werte) {
+  const namen = Object.keys(werte);
+  db.run('INSERT INTO "' + ebene + '" (geom, ' + namen.join(', ') + ') VALUES (?' +
+         ', ?'.repeat(namen.length) + ')',
+    [geometrie].concat(namen.map(function (n) { return werte[n]; })));
+}
+
+// Ausdehnung (Bounding Box) jeder Ebene ins Inhaltsverzeichnis schreiben
+function aktualisiereAusdehnung(db) {
+  ['standort', 'einzugsbereiche', 'infrastruktur', 'parks'].forEach(function (ebene) {
+    const ergebnis = db.exec('SELECT geom FROM "' + ebene + '"');
+    if (!ergebnis.length) return;
+    let box = [Infinity, Infinity, -Infinity, -Infinity];
+    ergebnis[0].values.forEach(function (zeile) {
+      const b = gpkgHuelle(zeile[0]);
+      box = [Math.min(box[0], b[0]), Math.min(box[1], b[1]), Math.max(box[2], b[2]), Math.max(box[3], b[3])];
+    });
+    db.run('UPDATE gpkg_contents SET min_x=?, min_y=?, max_x=?, max_y=? WHERE table_name=?',
+      box.concat([ebene]));
+  });
+}
+
+// Kreis als Vieleck in UTM-Metern (Mittelpunkt [Ost, Nord])
+function utmKreis(mitte, radius, n) {
   const ring = [];
   for (let i = 0; i <= n; i++) {
-    const richtung = (i % n) / n * 2 * Math.PI;   // letzter Punkt = erster (geschlossen)
-    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(winkel) +
-                           Math.cos(lat1) * Math.sin(winkel) * Math.cos(richtung));
-    const lon2 = lon1 + Math.atan2(Math.sin(richtung) * Math.sin(winkel) * Math.cos(lat1),
-                                   Math.cos(winkel) - Math.sin(lat1) * Math.sin(lat2));
-    ring.push([runde(lon2 * 180 / Math.PI, 7), runde(lat2 * 180 / Math.PI, 7)]);
+    const w = (i % n) / n * 2 * Math.PI;   // gegen den Uhrzeigersinn, geschlossen
+    ring.push([mitte[0] + radius * Math.cos(w), mitte[1] + radius * Math.sin(w)]);
   }
-  // GeoJSON-Regel: Außenringe gegen den Uhrzeigersinn → Reihenfolge umdrehen
-  return ring.reverse();
+  return ring;
+}
+
+// --- GeoPackage-Geometrie: kleiner Kopf ("GP") + WKB (Well-Known Binary) ---
+
+// Kopf: "GP", Version 0, Flags, SRS-ID, Hülle (minX, maxX, minY, maxY)
+function gpkgKopf(huelle) {
+  const kopf = new DataView(new ArrayBuffer(8 + (huelle ? 32 : 0)));
+  kopf.setUint8(0, 0x47); kopf.setUint8(1, 0x50);   // "G", "P"
+  kopf.setUint8(2, 0);                               // Version
+  kopf.setUint8(3, huelle ? 0b011 : 0b001);          // Little Endian (+ XY-Hülle)
+  kopf.setInt32(4, 25832, true);                     // Koordinatensystem
+  if (huelle) {
+    kopf.setFloat64(8, huelle[0], true);  kopf.setFloat64(16, huelle[2], true);
+    kopf.setFloat64(24, huelle[1], true); kopf.setFloat64(32, huelle[3], true);
+  }
+  return new Uint8Array(kopf.buffer);
+}
+
+function wkbPunkt(c) {
+  const wkb = new DataView(new ArrayBuffer(21));
+  wkb.setUint8(0, 1); wkb.setUint32(1, 1, true);     // Little Endian, Typ 1 = Point
+  wkb.setFloat64(5, c[0], true); wkb.setFloat64(13, c[1], true);
+  return verbinde(gpkgKopf(null), new Uint8Array(wkb.buffer));
+}
+
+// polygone = Liste von Polygonen, jedes = Liste von Ringen, jeder = Liste von [x, y]
+//   multi: true → MultiPolygon (Typ 6), sonst ein einzelnes Polygon (Typ 3)
+function wkbPolygone(polygone, multi) {
+  const teile = [];
+  let huelle = [Infinity, Infinity, -Infinity, -Infinity];
+  function polygonWkb(ringe) {
+    let groesse = 9;
+    ringe.forEach(function (r) { groesse += 4 + r.length * 16; });
+    const v = new DataView(new ArrayBuffer(groesse));
+    v.setUint8(0, 1); v.setUint32(1, 3, true); v.setUint32(5, ringe.length, true);
+    let pos = 9;
+    ringe.forEach(function (ring) {
+      v.setUint32(pos, ring.length, true); pos += 4;
+      ring.forEach(function (c) {
+        v.setFloat64(pos, c[0], true); v.setFloat64(pos + 8, c[1], true); pos += 16;
+        huelle = [Math.min(huelle[0], c[0]), Math.min(huelle[1], c[1]), Math.max(huelle[2], c[0]), Math.max(huelle[3], c[1])];
+      });
+    });
+    return new Uint8Array(v.buffer);
+  }
+  if (multi) {
+    const kopf = new DataView(new ArrayBuffer(9));
+    kopf.setUint8(0, 1); kopf.setUint32(1, 6, true); kopf.setUint32(5, polygone.length, true);
+    teile.push(new Uint8Array(kopf.buffer));
+    polygone.forEach(function (p) { teile.push(polygonWkb(p)); });
+  } else {
+    teile.push(polygonWkb(polygone[0]));
+  }
+  return verbinde.apply(null, [gpkgKopf(huelle)].concat(teile));
+}
+
+// Hülle aus dem Kopf einer gespeicherten Geometrie lesen (Punkte: aus dem WKB)
+function gpkgHuelle(bytes) {
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if ((v.getUint8(3) & 0b1110) !== 0) {
+    return [v.getFloat64(8, true), v.getFloat64(24, true), v.getFloat64(16, true), v.getFloat64(32, true)];
+  }
+  const x = v.getFloat64(8 + 5, true), y = v.getFloat64(8 + 13, true);
+  return [x, y, x, y];
+}
+
+// Mehrere Byte-Stücke zu einem zusammenfügen
+function verbinde() {
+  const stuecke = Array.prototype.slice.call(arguments);
+  const gesamt = new Uint8Array(stuecke.reduce(function (s, t) { return s + t.length; }, 0));
+  let pos = 0;
+  stuecke.forEach(function (t) { gesamt.set(t, pos); pos += t.length; });
+  return gesamt;
 }
 
 // Zahl auf n Nachkommastellen runden

@@ -21,10 +21,10 @@
   - Schon erledigt (vorgezogen): Side-Panel mit Koordinaten, Flächen und Luftlinien-Vergleich (Umwegfaktor 1,3; 4,8 km/h) sowie Adresssuche (Nominatim). **Must-Bereich komplett.**
   - Vorgezogen: Online auf GitHub Pages → https://jade-hs-vibecoding-wpk.github.io/15-min-stadt-scanner/ (Änderungen per „Add file → Upload files“ hochladen).
   - Vorgezogen (Could): PNG-Export der Kartenansicht inkl. Legende, Maßstabsleiste und OSM-Namensnennung (doppelte Auflösung).
-  - Darstellung einstellbar (aufklappbar im Panel): Akzentfarbe, Kartenstil (hell-grau/farbig/dunkel), Füllung, Radien (100–1.500 m); wird im Browser gespeichert und in PNG/PDF/GeoJSON übernommen.
-  - GeoJSON-Export für QGIS: Standort, 400/800-m-Kreise (Flächen) und ÖPNV-Haltepunkte mit Attributen (WGS 84 / EPSG:4326); mit QGIS-GDAL geprüft.
+  - Darstellung einstellbar (aufklappbar im Panel): Akzentfarbe, Kartenstil (hell-grau/farbig/dunkel), Füllung, Radien (100–1.500 m); wird im Browser gespeichert und in PNG/PDF/GeoPackage übernommen.
+  - GeoPackage-Export für QGIS (ersetzt GeoJSON): 4 Ebenen – standort, einzugsbereiche, infrastruktur, parks – in ETRS89 / UTM 32N (EPSG:25832); mit QGIS-GDAL geprüft.
   - PDF-Export: Planblatt A3 quer (Karte + Plankopf mit Standort, Einzugsbereichen, ÖPNV-Zahlen, Datum, OSM-Quelle) via jsPDF.
-  - Begonnen (Mi): ÖPNV-Haltepunkte per Overpass inkl. automatischer Wiederholung – live noch ungetestet, da Overpass am 16.11. überlastet war.
+  - Infrastruktur (Mi, vorgezogen): Overpass war den ganzen Tag überlastet → stattdessen OSM-Auszug von Geofabrik (Niedersachsen, Stand 16.11.2026) einmal heruntergeladen, Oldenburg + Umland ausgeschnitten und als `daten/oldenburg-osm.js` mitgeliefert (2.837 Orte). Kategorien: ÖPNV-Haltepunkte, Supermärkte & Bäcker, Kitas & Schulen, Parks. Zählung sofort, ohne Server. Gegenprobe: 37 Haltepunkte im 800-m-Kreis Innenstadt = gleiches Ergebnis wie Overpass.
   - Layout geordnet: Panel passt ohne Scrollen auf 1280×800 (Legende als Planlegende auf der Karte, Flächen + Fußweg in einer Tabelle, Hinweistext verschwindet nach der Analyse).
 - [ ] **Di 17.11.:** UI-Design im Architektur-Layout polieren, Adresssuche einbauen, Radien-Darstellung verfeinern.
 - [ ] **Mi 18.11.:** Overpass-API anbinden (echte Infrastrukturdaten laden, zählen und filtern).

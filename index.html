@@ -24,7 +24,10 @@
         <!-- Texte werden von script.js passend zu den eingestellten Radien gesetzt -->
         <li><span class="swatch swatch-400"></span><span id="legende-innen">400 m</span> <span class="mono" id="legende-innen-min">≈ 5 Min.</span></li>
         <li><span class="swatch swatch-800"></span><span id="legende-aussen">800 m</span> <span class="mono" id="legende-aussen-min">≈ 10 Min.</span></li>
-        <li><span class="punkt punkt-oepnv"></span>ÖPNV-Haltepunkt</li>
+        <li><span class="legende-symbol"><span class="poi poi-kreis"></span></span>ÖPNV-Haltepunkt</li>
+        <li><span class="legende-symbol"><span class="poi poi-quadrat"></span></span>Supermarkt / Bäcker</li>
+        <li><span class="legende-symbol"><span class="poi poi-dreieck"></span></span>Kita / Schule</li>
+        <li><span class="legende-symbol"><span class="poi poi-flaeche"></span></span>Park</li>
       </ul>
     </div>
   </main>
@@ -53,10 +56,8 @@
 
     <!-- Kennzahlen: erst sichtbar, wenn ein Punkt angeklickt wurde -->
     <section id="kennzahlen" hidden>
-      <p class="label">Standort</p>
-      <dl class="werte">
-        <dt>Koordinaten</dt>  <dd class="mono-zahl" id="wert-koordinaten">–</dd>
-      </dl>
+      <!-- Standort: Überschrift und Koordinaten in einer Zeile -->
+      <p class="label standort-zeile">Standort <span class="mono-zahl" id="wert-koordinaten">–</span></p>
 
       <p class="label">Einzugsbereiche</p>
       <table class="vergleich">
@@ -77,9 +78,24 @@
         </thead>
         <tbody>
           <tr>
-            <td class="kategorie">ÖPNV-Haltepunkte</td>
-            <td id="oepnv-innen">–</td>
-            <td id="oepnv-aussen">–</td>
+            <td class="kategorie"><span class="poi poi-kreis"></span>ÖPNV-Haltepunkte</td>
+            <td id="anz-oepnv-innen">–</td>
+            <td id="anz-oepnv-aussen">–</td>
+          </tr>
+          <tr>
+            <td class="kategorie"><span class="poi poi-quadrat"></span>Supermärkte &amp; Bäcker</td>
+            <td id="anz-versorgung-innen">–</td>
+            <td id="anz-versorgung-aussen">–</td>
+          </tr>
+          <tr>
+            <td class="kategorie"><span class="poi poi-dreieck"></span>Kitas &amp; Schulen</td>
+            <td id="anz-bildung-innen">–</td>
+            <td id="anz-bildung-aussen">–</td>
+          </tr>
+          <tr>
+            <td class="kategorie" title="Parks zählen, wenn ihr Rand im Radius liegt"><span class="poi poi-flaeche"></span>Parks</td>
+            <td id="anz-gruen-innen">–</td>
+            <td id="anz-gruen-aussen">–</td>
           </tr>
         </tbody>
       </table>
@@ -130,17 +146,17 @@
 
     <!-- Export der Kartenansicht als Bild fürs Poster -->
     <section id="export">
-      <p class="label">Export</p>
       <div class="knopf-zeile">
         <button type="button" id="export-knopf" class="knopf-umriss" title="Kartenansicht als Bild">PNG</button>
         <button type="button" id="pdf-knopf" class="knopf-umriss" title="Planblatt A3 quer mit Kennzahlen">PDF A3</button>
-        <button type="button" id="geojson-knopf" class="knopf-umriss" title="Geodaten für QGIS: Standort, Kreise, Haltepunkte">GeoJSON</button>
+        <button type="button" id="gpkg-knopf" class="knopf-umriss" title="GeoPackage für QGIS: Standort, Kreise, Infrastruktur, Parks (EPSG:25832)">GeoPackage</button>
       </div>
       <p class="anmerkung" id="export-status"></p>
     </section>
 
+    <!-- OSM-Namensnennung (Pflicht) – kompakt in einer Zeile -->
     <footer>
-      Kartendaten &amp; Kartenkacheln © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a>
+      © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a> (ODbL)
     </footer>
   </aside>
 
@@ -150,6 +166,8 @@
   <script src="https://unpkg.com/html-to-image@1.11.13/dist/html-to-image.js"></script>
   <!-- jsPDF: erstellt PDF-Dateien direkt im Browser (für das Planblatt) -->
   <script src="https://unpkg.com/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
+  <!-- OpenStreetMap-Auszug für Oldenburg (Haltestellen, Supermärkte, Kitas, Parks) -->
+  <script src="daten/oldenburg-osm.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
