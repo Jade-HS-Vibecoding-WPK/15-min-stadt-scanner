@@ -29,8 +29,12 @@ const map = L.map('map').setView([53.1435, 8.2146], 14);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-Mitwirkende</a>',
   className: 'basemap',
+  crossOrigin: true,   // erlaubt, die Kacheln später ins PNG zu übernehmen
   maxZoom: 19
 }).addTo(map);
+
+// Maßstabsleiste (nur Meter), unten rechts über der Namensnennung
+L.control.scale({ imperial: false, position: 'bottomright', maxWidth: 150 }).addTo(map);
 
 // 3) Eine "Ebene" (wie ein Layer in CAD), in die wir Marker + Kreise legen.
 //    So können wir beim nächsten Klick alles auf einmal löschen.
@@ -300,3 +304,45 @@ function zeigeEinzugsbereiche() {
     'Annahme: Umwegfaktor ' + deutsch(UMWEGFAKTOR, 1) +
     ', Gehtempo ' + deutsch(GEHTEMPO_KMH, 1) + ' km/h';
 }
+
+// ------------------------------------------------------------
+// Export: Kartenbereich (Karte + Kreise + Legende + Maßstab +
+// OSM-Namensnennung) als PNG-Bild speichern – z. B. fürs Poster
+// ------------------------------------------------------------
+const exportKnopf = document.getElementById('export-knopf');
+const exportStatus = document.getElementById('export-status');
+
+exportKnopf.addEventListener('click', async function () {
+  exportKnopf.disabled = true;
+  exportStatus.textContent = 'Bild wird erstellt …';
+
+  try {
+    const bereich = document.getElementById('karte-bereich');
+
+    // html-to-image "fotografiert" den Bereich.
+    // pixelRatio 2 = doppelte Auflösung, damit es auf dem Poster scharf ist.
+    const bild = await htmlToImage.toPng(bereich, {
+      pixelRatio: 2,
+      backgroundColor: '#F8F8F6',
+      // Wir nutzen nur System-Schriften → keine Web-Schriften einbetten
+      skipFonts: true,
+      // Zoom-Knöpfe (+/−) gehören nicht aufs Poster → weglassen
+      filter: function (element) {
+        return !(element.classList && element.classList.contains('leaflet-control-zoom'));
+      }
+    });
+
+    // Bild als Datei herunterladen, z. B. "stadt-scanner-2026-11-16.png"
+    const datum = new Date().toISOString().slice(0, 10);
+    const link = document.createElement('a');
+    link.href = bild;
+    link.download = 'stadt-scanner-' + datum + '.png';
+    link.click();
+
+    exportStatus.textContent = 'Gespeichert (im Download-Ordner).';
+  } catch (fehler) {
+    exportStatus.textContent = 'Export fehlgeschlagen. Bitte warten, bis die Karte ganz geladen ist, und erneut versuchen.';
+  } finally {
+    exportKnopf.disabled = false;
+  }
+});

@@ -6,7 +6,8 @@
   <title>15-Minuten-Stadt-Scanner</title>
 
   <!-- Leaflet: kostenlose Karten-Bibliothek (Aussehen der Karte) -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <!-- crossorigin: erlaubt dem PNG-Export, diese Datei auszulesen -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
 
   <!-- Unser eigenes Design -->
   <link rel="stylesheet" href="style.css">
@@ -84,6 +85,12 @@
       <p class="anmerkung" id="infra-status"></p>
     </section>
 
+    <!-- Export der Kartenansicht als Bild fürs Poster -->
+    <section id="export">
+      <button type="button" id="export-knopf" class="knopf-umriss">Karte als PNG speichern</button>
+      <p class="anmerkung" id="export-status"></p>
+    </section>
+
     <footer>
       Kartendaten &amp; Kartenkacheln © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a>
     </footer>
@@ -91,6 +98,8 @@
 
   <!-- Leaflet-Programmcode, danach unser eigenes Skript -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- html-to-image: macht aus einem Bereich der Seite ein PNG (für den Export) -->
+  <script src="https://unpkg.com/html-to-image@1.11.13/dist/html-to-image.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

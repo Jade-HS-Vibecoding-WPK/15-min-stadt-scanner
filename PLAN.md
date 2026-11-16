@@ -19,6 +19,9 @@
 - [x] **Mo 16.11.:** Ordner, `CLAUDE.md` und `PLAN.md` stehen; erstes Grundgerüst (Karte + Klick-Radien) läuft lokal.
   - Hinweis: CartoDB Positron verlangt inzwischen einen API-Key → stattdessen OSM-Standardkacheln mit CSS-Graufilter.
   - Schon erledigt (vorgezogen): Side-Panel mit Koordinaten, Flächen und Luftlinien-Vergleich (Umwegfaktor 1,3; 4,8 km/h) sowie Adresssuche (Nominatim). **Must-Bereich komplett.**
+  - Vorgezogen: Online auf GitHub Pages → https://jade-hs-vibecoding-wpk.github.io/15-min-stadt-scanner/ (Änderungen per „Add file → Upload files“ hochladen).
+  - Vorgezogen (Could): PNG-Export der Kartenansicht inkl. Legende, Maßstabsleiste und OSM-Namensnennung (doppelte Auflösung).
+  - Begonnen (Mi): ÖPNV-Haltepunkte per Overpass inkl. automatischer Wiederholung – live noch ungetestet, da Overpass am 16.11. überlastet war.
   - Layout geordnet: Panel passt ohne Scrollen auf 1280×800 (Legende als Planlegende auf der Karte, Flächen + Fußweg in einer Tabelle, Hinweistext verschwindet nach der Analyse).
 - [ ] **Di 17.11.:** UI-Design im Architektur-Layout polieren, Adresssuche einbauen, Radien-Darstellung verfeinern.
 - [ ] **Mi 18.11.:** Overpass-API anbinden (echte Infrastrukturdaten laden, zählen und filtern).

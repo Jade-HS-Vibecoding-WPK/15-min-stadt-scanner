@@ -207,9 +207,34 @@ h1 {
   background: radial-gradient(circle, var(--ink) 3.5px, transparent 4px);
 }
 
+/* ===== Export-Knopf (Umriss-Stil, wird beim Darüberfahren orange) ===== */
+#export { margin-top: auto; }   /* schiebt Export + Footer nach unten */
+
+.knopf-umriss {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
+}
+.knopf-umriss:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+.knopf-umriss:disabled { opacity: 0.5; cursor: wait; }
+
+#export-status:empty { display: none; }
+
+/* Maßstabsleiste im gleichen Stil wie der Rest */
+.leaflet-control-scale-line {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--ink);
+  border-color: var(--ink);
+  background: rgba(248, 248, 246, 0.85);
+}
+
 /* ===== Footer mit OSM-Namensnennung ===== */
 footer {
-  margin-top: auto;
   font-size: 11px;
   color: var(--grey);
 }
