@@ -41,7 +41,7 @@
 
     <!-- Adresssuche (Nominatim, der kostenlose Suchdienst von OpenStreetMap) -->
     <form id="suche">
-      <label class="label" for="suche-eingabe">Adresse suchen</label>
+      <label class="unsichtbar" for="suche-eingabe">Adresse suchen</label>
       <div class="suche-zeile">
         <input id="suche-eingabe" type="search" placeholder="z. B. Schlossplatz, Oldenburg" autocomplete="off" required>
         <button type="submit" id="suche-knopf" title="Suchen" aria-label="Suchen">→</button>
@@ -57,49 +57,38 @@
     <!-- Kennzahlen: erst sichtbar, wenn ein Punkt angeklickt wurde -->
     <section id="kennzahlen" hidden>
       <!-- 1) Ergebnis zuerst: die 15-Minuten-Bewertung, groß -->
-      <div class="ergebnis">
+      <div class="ergebnis" id="ergebnis">
         <p class="label"><span class="nr">01</span>15-Minuten-Bewertung</p>
-        <div class="ergebnis-zeile">
-          <span class="ergebnis-zahl" id="bewertung">–</span>
+
+        <!-- Ganze Zeile ist ein Knopf: Klick klappt die Aufschlüsselung auf -->
+        <button type="button" class="ergebnis-zeile" id="bewertung-knopf"
+                aria-expanded="false" aria-controls="aufschluesselung">
+          <!-- Ring mit 4 Stücken (= 4 Kategorien), Zahl in der Mitte -->
+          <span class="ring" id="bewertung-ring">
+            <span class="ring-zahl"><span class="ergebnis-zahl" id="bewertung">–</span><span class="ring-max" id="bewertung-max">/8</span></span>
+          </span>
           <span class="ergebnis-text">
             <strong id="bewertung-stufe"></strong>
             <span class="mono klein" id="wert-koordinaten">–</span>
+            <span class="auf-hinweis">Aufschlüsselung <span class="auf-pfeil" aria-hidden="true">›</span></span>
           </span>
+        </button>
+
+        <!-- Aufschlüsselung: je Kategorie Punkte und nächstes Ziel -->
+        <div class="aufklapp" id="aufschluesselung">
+          <div class="aufklapp-innen">
+            <ul id="bewertung-liste"></ul>
+            <p class="anmerkung">2 Punkte: Ziel im inneren Kreis · 1 Punkt: im äußeren · Gehzeit mit Umwegfaktor. Zahlen: Ziele im inneren · äußeren Kreis. Zeile antippen zeigt den Weg auf der Karte.</p>
+          </div>
         </div>
       </div>
 
-      <!-- 2) Infrastruktur aus OpenStreetMap -->
-      <p class="label abschnitt"><span class="nr">02</span>Infrastruktur</p>
-      <table class="tabelle">
-        <thead>
-          <tr><th>Kategorie</th><th id="kopf-innen">≤ 400 m</th><th id="kopf-aussen">≤ 800 m</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td class="kategorie"><span data-symbol="oepnv"></span>ÖPNV-Haltepunkte</td>
-            <td id="anz-oepnv-innen">–</td>
-            <td id="anz-oepnv-aussen">–</td>
-          </tr>
-          <tr>
-            <td class="kategorie"><span data-symbol="versorgung"></span>Supermärkte &amp; Bäcker</td>
-            <td id="anz-versorgung-innen">–</td>
-            <td id="anz-versorgung-aussen">–</td>
-          </tr>
-          <tr>
-            <td class="kategorie"><span data-symbol="bildung"></span>Kitas &amp; Schulen</td>
-            <td id="anz-bildung-innen">–</td>
-            <td id="anz-bildung-aussen">–</td>
-          </tr>
-          <tr>
-            <td class="kategorie" title="Parks zählen, wenn ihr Rand im Radius liegt"><span data-symbol="gruen"></span>Parks</td>
-            <td id="anz-gruen-innen">–</td>
-            <td id="anz-gruen-aussen">–</td>
-          </tr>
-        </tbody>
-      </table>
+      <!-- 2) wird ausgeblendet, solange die Aufschlüsselung offen ist.
+           (Die Infrastruktur-Zahlen stehen jetzt in der Aufschlüsselung.) -->
+      <div class="weitere"><div class="weitere-innen">
 
-      <!-- 3) Einzugsbereiche (Fläche, Fußweg, Gehzeit) -->
-      <p class="label abschnitt"><span class="nr">03</span>Einzugsbereiche</p>
+      <!-- 2) Einzugsbereiche (Fläche, Fußweg, Gehzeit) -->
+      <p class="label abschnitt"><span class="nr">02</span>Einzugsbereiche</p>
       <table class="tabelle">
         <thead>
           <tr><th>Radius</th><th>Fläche</th><th>Fußweg ca.</th><th>Gehzeit ca.</th></tr>
@@ -111,6 +100,8 @@
 
       <!-- Annahmen und Datenquelle als eine ruhige Fußnote -->
       <p class="anmerkung"><span id="vergleich-annahme"></span> <span id="infra-status"></span></p>
+
+      </div></div>
     </section>
 
     <!-- Unterer Block: Darstellung, Export, Namensnennung -->

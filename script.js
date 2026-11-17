@@ -316,10 +316,6 @@ function zaehleInfrastruktur(punkt) {
 
   // Daten nicht geladen oder Standort außerhalb des Datengebiets?
   if (!window.OSM_DATEN || !imDatengebiet(punkt)) {
-    KATEGORIEN.forEach(function (kat) {
-      document.getElementById('anz-' + kat.id + '-innen').textContent = '–';
-      document.getElementById('anz-' + kat.id + '-aussen').textContent = '–';
-    });
     zeigeBewertung(null);
     status.textContent = window.OSM_DATEN
       ? 'Außerhalb des Datengebiets – Infrastruktur nur für Oldenburg und Umgebung verfügbar.'
@@ -329,17 +325,26 @@ function zaehleInfrastruktur(punkt) {
 
   // Zähler für jede Kategorie vorbereiten
   const zaehler = {};
-  KATEGORIEN.forEach(function (kat) { zaehler[kat.id] = { innen: 0, aussen: 0 }; });
+  KATEGORIEN.forEach(function (kat) { zaehler[kat.id] = { innen: 0, aussen: 0, naechstes: null }; });
   const gefunden = [];
 
   OSM_DATEN.features.forEach(function (ort) {
     // Schneller Vorab-Test: grob zu weit weg? Dann gar nicht genau rechnen.
     if (!grobInDerNaehe(ort, punkt, rAussen)) return;
 
-    const entfernung = entfernungZu(ort, punkt);   // Luftlinie in Metern
+    const stelle = naechsteStelle(ort, punkt);   // Luftlinie in Metern + Zielpunkt
+    const entfernung = stelle.entfernung;
+    const kat = ort.properties.kat;
+
+    // Nächstes Ziel dieser Kategorie merken – auch außerhalb der Kreise,
+    // damit wir zeigen können, wie weit es bis zum nächsten Ziel ist
+    const bisher = zaehler[kat].naechstes;
+    if (!bisher || entfernung < bisher.entfernung) {
+      zaehler[kat].naechstes = { name: ort.properties.name || '', entfernung: entfernung, lage: stelle.lage };
+    }
+
     if (entfernung > rAussen) return;
 
-    const kat = ort.properties.kat;
     zaehler[kat].aussen++;
     if (entfernung <= rInnen) zaehler[kat].innen++;
     gefunden.push({ ort: ort, entfernung: entfernung });
@@ -347,11 +352,7 @@ function zaehleInfrastruktur(punkt) {
     zeichneOrt(ort);
   });
 
-  // Ergebnisse ins Panel schreiben
-  KATEGORIEN.forEach(function (kat) {
-    document.getElementById('anz-' + kat.id + '-innen').textContent = zaehler[kat.id].innen;
-    document.getElementById('anz-' + kat.id + '-aussen').textContent = zaehler[kat.id].aussen;
-  });
+  // Ergebnisse ins Panel schreiben (Anzahlen stehen in der Aufschlüsselung)
   status.textContent = 'OSM-Stand ' + OSM_DATEN.datenstand + '. Parks zählen ab ihrem Rand.';
 
   letzteOrte = gefunden;
@@ -380,10 +381,15 @@ const BEWERTUNGS_STUFEN = [
 function berechneBewertung(zaehler) {
   let punkte = 0;
   const fehlend = [];   // Kategorien ohne Ziel im inneren Kreis
+  const details = [];   // Aufschlüsselung: eine Zeile pro Kategorie
   KATEGORIEN.forEach(function (kat) {
-    if (zaehler[kat.id].innen > 0) punkte += 2;
-    else if (zaehler[kat.id].aussen > 0) { punkte += 1; fehlend.push(kat.name + ' (erst im äußeren Kreis)'); }
+    const z = zaehler[kat.id];
+    let p = 0;
+    if (z.innen > 0) p = 2;
+    else if (z.aussen > 0) { p = 1; fehlend.push(kat.name + ' (erst im äußeren Kreis)'); }
     else fehlend.push(kat.name + ' (fehlt ganz)');
+    punkte += p;
+    details.push({ kat: kat, punkte: p, innen: z.innen, aussen: z.aussen, naechstes: z.naechstes });
   });
   const maximum = KATEGORIEN.length * 2;
   const anteil = punkte / maximum;
@@ -392,27 +398,178 @@ function berechneBewertung(zaehler) {
     maximum: maximum,
     prozent: Math.round(anteil * 100),
     stufe: BEWERTUNGS_STUFEN.find(function (s) { return anteil >= s.ab; }).text,
-    fehlend: fehlend
+    fehlend: fehlend,
+    details: details
   };
 }
 
-// Bewertung oben im Ergebnis-Block anzeigen (große Zahl + Stufe)
+// Bewertung oben im Ergebnis-Block anzeigen:
+//   Ring (4 Segmente = 4 Kategorien), große Zahl, Stufe – und die
+//   aufklappbare Aufschlüsselung mit dem nächsten Ziel je Kategorie.
 function zeigeBewertung(b) {
   const zahl = document.getElementById('bewertung');
   const stufe = document.getElementById('bewertung-stufe');
-  const block = zahl.closest('.ergebnis');
+  const knopf = document.getElementById('bewertung-knopf');
+  entferneWeg();
+  zeichneRing(b);
+
   if (!b) {
     cancelAnimationFrame(zahlAnimation);
     zahl.textContent = '–';
     stufe.textContent = 'keine Daten für diesen Ort';
-    block.title = '';
+    knopf.disabled = true;
+    klappeAufschluesselung(false);
     return;
   }
-  zaehleHoch(zahl, b.punkte, '/' + b.maximum);
+  knopf.disabled = false;
+  zaehleHoch(zahl, b.punkte, '');
+  document.getElementById('bewertung-max').textContent = '/' + b.maximum;
   stufe.textContent = b.stufe;
-  block.title = '15-Minuten-Bewertung: ' + b.prozent + ' %\n' +
-    'Je Kategorie 2 Punkte, wenn ein Ziel im inneren Kreis liegt, 1 Punkt im äußeren.' +
-    (b.fehlend.length ? '\nNicht im inneren Kreis: ' + b.fehlend.join(', ') : '');
+  fuelleAufschluesselung(b);
+}
+
+// --- Ring: wie die Aktivitätsringe der Apple Watch, aber in 4 Stücken.
+//     Jedes Stück ist eine Kategorie; voll = 2 Punkte, halb = 1 Punkt.
+function zeichneRing(b) {
+  const R = 33, MITTE = 40, LUECKE = 14;   // Radius, Mittelpunkt, Lücke in Grad
+  const STUECK = 90 - LUECKE;
+  let svg = '<svg viewBox="0 0 80 80" aria-hidden="true">';
+  KATEGORIEN.forEach(function (kat, i) {
+    const von = i * 90 + LUECKE / 2 - 90;   // oben beginnen, im Uhrzeigersinn
+    const d = bogen(MITTE, R, von, von + STUECK);
+    const p = b ? b.details[i].punkte : 0;
+    svg += '<path class="ring-spur" d="' + d + '"/>';
+    svg += '<path class="ring-wert" d="' + d + '" pathLength="100" stroke="' + kat.farbe +
+           '" data-ziel="' + (100 - p * 50) + '" style="stroke-dashoffset:100"/>';
+  });
+  svg += '</svg>';
+  const ring = document.getElementById('bewertung-ring');
+  ring.querySelector('svg') && ring.querySelector('svg').remove();
+  ring.insertAdjacentHTML('afterbegin', svg);
+
+  // Nach dem Einfügen die Stücke "füllen" (CSS-Übergang = Animation)
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () {
+      ring.querySelectorAll('.ring-wert').forEach(function (pfad, i) {
+        pfad.style.transitionDelay = (WENIG_BEWEGUNG ? 0 : 0.15 + i * 0.08) + 's';
+        pfad.style.strokeDashoffset = pfad.dataset.ziel;
+      });
+    });
+  });
+}
+
+// SVG-Bogen von Winkel a1 bis a2 (Grad, 0 = rechts, im Uhrzeigersinn)
+function bogen(m, r, a1, a2) {
+  const p1 = [m + r * Math.cos(a1 * Math.PI / 180), m + r * Math.sin(a1 * Math.PI / 180)];
+  const p2 = [m + r * Math.cos(a2 * Math.PI / 180), m + r * Math.sin(a2 * Math.PI / 180)];
+  return 'M' + p1[0].toFixed(2) + ' ' + p1[1].toFixed(2) +
+         ' A' + r + ' ' + r + ' 0 0 1 ' + p2[0].toFixed(2) + ' ' + p2[1].toFixed(2);
+}
+
+// --- Aufschlüsselung: je Kategorie Punkte + nächstes Ziel mit Gehzeit
+const PUNKTE_TEXT = ['0 Punkte', '1 Punkt', '2 Punkte'];
+
+function fuelleAufschluesselung(b) {
+  const liste = document.getElementById('bewertung-liste');
+  liste.innerHTML = '';
+  b.details.forEach(function (d) {
+    const zeile = document.createElement('li');
+    const knopf = document.createElement('button');
+    knopf.type = 'button';
+    knopf.className = 'auf-zeile';
+    knopf.dataset.kat = d.kat.id;
+
+    // Punkte als zwei kleine Felder: ●● / ●○ / ○○
+    let felder = '';
+    for (let i = 0; i < 2; i++) {
+      felder += '<span class="punkt' + (i < d.punkte ? ' voll' : '') + '" style="--kat:' + d.kat.farbe + '"></span>';
+    }
+
+    // Unterzeile: nächstes Ziel, Luftlinie, Gehzeit (wie bei den Einzugsbereichen)
+    let unter;
+    const n = d.naechstes;
+    if (!n) {
+      unter = 'kein Ziel in über 3 km Umkreis';
+      knopf.disabled = true;
+    } else {
+      const min = Math.max(1, Math.round(n.entfernung * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN));
+      const name = n.name || 'ohne Namen';
+      unter = (n.entfernung === 0 ? 'Standort liegt im Park' : 'Nächstes: ' + name) + ' · ' +
+              '<span class="mono">' + deutsch(Math.round(n.entfernung), 0) + ' m · ' + min + ' Min.</span>';
+    }
+
+    knopf.innerHTML =
+      '<span class="auf-kopf">' + symbolSvg(d.kat.id) +
+        '<span class="auf-name">' + d.kat.name + '</span>' +
+        '<span class="auf-anzahl mono" title="Anzahl im inneren / äußeren Kreis">' + d.innen + ' · ' + d.aussen + '</span>' +
+        '<span class="auf-punkte" title="' + PUNKTE_TEXT[d.punkte] + '">' + felder + '</span>' +
+      '</span>' +
+      '<span class="auf-unter">' + unter + '</span>';
+    knopf.addEventListener('click', function () { zeigeWeg(d, knopf); });
+    zeile.appendChild(knopf);
+    liste.appendChild(zeile);
+  });
+}
+
+// Auf- und zuklappen (offen = true/false)
+function klappeAufschluesselung(offen) {
+  const knopf = document.getElementById('bewertung-knopf');
+  knopf.setAttribute('aria-expanded', offen ? 'true' : 'false');
+  document.getElementById('ergebnis').classList.toggle('offen', offen);
+  // Fokus: Tabellen 02 + 03 weichen, solange die Aufschlüsselung offen ist
+  document.getElementById('kennzahlen').classList.toggle('fokus', offen);
+  if (!offen) entferneWeg();
+}
+document.getElementById('bewertung-knopf').addEventListener('click', function () {
+  klappeAufschluesselung(this.getAttribute('aria-expanded') !== 'true');
+});
+
+// --- Weg zum nächsten Ziel auf der Karte zeigen (gestrichelte Linie)
+let wegEbene = null;
+let wegKat = null;
+
+function entferneWeg() {
+  if (wegEbene) { analyse.removeLayer(wegEbene); wegEbene = null; }
+  wegKat = null;
+  document.querySelectorAll('.auf-zeile.aktiv').forEach(function (z) { z.classList.remove('aktiv'); });
+}
+
+function zeigeWeg(d, knopf) {
+  // Zweiter Klick auf dieselbe Zeile: Linie wieder weg
+  if (wegKat === d.kat.id) { entferneWeg(); return; }
+  entferneWeg();
+  if (!d.naechstes || !letzterPunkt) return;
+
+  wegKat = d.kat.id;
+  knopf.classList.add('aktiv');
+  const ziel = d.naechstes.lage;
+  const min = Math.max(1, Math.round(d.naechstes.entfernung * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN));
+
+  wegEbene = L.layerGroup([
+    // Linie Standort → Ziel
+    L.polyline([letzterPunkt, ziel], {
+      color: INK, weight: 2, dashArray: '1 6', lineCap: 'round',
+      interactive: false, className: 'weg-linie'
+    }),
+    // Ring um das Ziel in der Kategorie-Farbe
+    L.circleMarker(ziel, {
+      radius: 11, color: d.kat.farbe, weight: 2.5, fillOpacity: 0.15,
+      fillColor: d.kat.farbe, interactive: false, className: 'weg-ziel'
+    }).bindTooltip(
+      (d.naechstes.name || d.kat.name) + ' · ' + deutsch(Math.round(d.naechstes.entfernung), 0) + ' m · ca. ' + min + ' Min.',
+      { permanent: true, direction: 'top', offset: [0, -10], className: 'weg-schild' }
+    )
+  ]).addTo(analyse);
+
+  // Liegt das Ziel außerhalb des sichtbaren Bereichs? Dann sanft hinschwenken.
+  const frei = verdeckterRand();
+  const grenzen = L.latLngBounds([letzterPunkt, ziel]);
+  if (!map.getBounds().pad(-0.1).contains(ziel)) {
+    map.fitBounds(grenzen, {
+      paddingTopLeft: [60, 60], paddingBottomRight: [60 + frei.rechts, 60 + frei.unten],
+      animate: !WENIG_BEWEGUNG, duration: 0.55, maxZoom: map.getZoom()
+    });
+  }
 }
 
 // Liegt der Punkt im ausgeschnittenen Gebiet? gebiet = [West, Süd, Ost, Nord]
@@ -434,19 +591,29 @@ function grobInDerNaehe(ort, punkt, radius) {
 //   Parks (Flächen): 0, wenn der Standort im Park liegt –
 //   sonst Entfernung zur nächsten Ecke des Park-Umrisses.
 function entfernungZu(ort, punkt) {
+  return naechsteStelle(ort, punkt).entfernung;
+}
+
+// Wie entfernungZu, liefert aber zusätzlich den nächsten Punkt des Ortes
+// (bei Parks: die nächste Ecke des Umrisses; liegt man im Park: der Standort)
+function naechsteStelle(ort, punkt) {
   const geo = ort.geometry;
   if (geo.type === 'Point') {
-    return map.distance(punkt, L.latLng(geo.coordinates[1], geo.coordinates[0]));
+    const lage = L.latLng(geo.coordinates[1], geo.coordinates[0]);
+    return { entfernung: map.distance(punkt, lage), lage: lage };
   }
   const polygone = geo.type === 'Polygon' ? [geo.coordinates] : geo.coordinates;
-  let minimum = Infinity;
+  let beste = { entfernung: Infinity, lage: null };
   polygone.forEach(function (polygon) {
-    if (punktInPolygon(punkt, polygon)) minimum = 0;
+    if (punktInPolygon(punkt, polygon)) beste = { entfernung: 0, lage: punkt };
+    if (beste.entfernung === 0) return;
     polygon[0].forEach(function (ecke) {
-      minimum = Math.min(minimum, map.distance(punkt, L.latLng(ecke[1], ecke[0])));
+      const lage = L.latLng(ecke[1], ecke[0]);
+      const e = map.distance(punkt, lage);
+      if (e < beste.entfernung) beste = { entfernung: e, lage: lage };
     });
   });
-  return minimum;
+  return beste;
 }
 
 // Liegt der Punkt in der Fläche? (Strahl-Methode; Löcher werden beachtet)
@@ -790,19 +957,20 @@ pdfKnopf.addEventListener('click', async function () {
       y += erklaerung.length * 3.6 + 10;
     }
 
-    // Abschnitt: Infrastruktur (Werte aus dem Panel übernehmen)
+    // Abschnitt: Infrastruktur (Anzahlen aus der Bewertung)
     y = abschnitt(pdf, '02   Infrastruktur', x, xr, y);
     const spalten2 = [x, x + 66, xr];
     tabellenKopf(pdf, ['Kategorie',
       'bis ' + deutsch(einstellungen.radiusInnen, 0) + ' m',
       'bis ' + deutsch(einstellungen.radiusAussen, 0) + ' m'], spalten2, y);
     y += 6;
-    KATEGORIEN.forEach(function (kat) {
+    KATEGORIEN.forEach(function (kat, i) {
+      const d = letzteBewertung ? letzteBewertung.details[i] : null;
       pdfSymbol(pdf, kat, x + 1.6, y - 1.2);   // farbiges Symbol vor dem Namen
       tabellenZeile(pdf, [
         '      ' + kat.name,
-        zahlOderStrich('anz-' + kat.id + '-innen'),
-        zahlOderStrich('anz-' + kat.id + '-aussen')
+        d ? String(d.innen) : '–',
+        d ? String(d.aussen) : '–'
       ], spalten2, x, xr, y, true);
       y += 7;
     });
@@ -946,11 +1114,6 @@ function tabellenZeile(pdf, texte, spalten, x, xr, y, ersteSpalteNormal) {
 }
 
 // Zahl aus dem Panel holen; "…" (lädt noch) oder "–" werden zu "–"
-function zahlOderStrich(id) {
-  const wert = document.getElementById(id).textContent.trim();
-  return /^\d+$/.test(wert) ? wert : '–';
-}
-
 // ------------------------------------------------------------
 // Export: GeoPackage für QGIS
 //   GeoPackage (.gpkg) ist das Standard-Format von QGIS: eine
@@ -1259,13 +1422,11 @@ function wendeDarstellungAn() {
   karte.classList.remove('stil-grau', 'stil-farbig', 'stil-dunkel');
   karte.classList.add('stil-' + e.kartenstil);
 
-  // Legende und Tabellenköpfe an die Radien anpassen
+  // Legende an die Radien anpassen
   document.getElementById('legende-innen').textContent = deutsch(e.radiusInnen, 0) + ' m';
   document.getElementById('legende-aussen').textContent = deutsch(e.radiusAussen, 0) + ' m';
   document.getElementById('legende-innen-min').textContent = '≈ ' + deutsch(e.radiusInnen / GEHTEMPO_M_PRO_MIN, 0) + ' Min.';
   document.getElementById('legende-aussen-min').textContent = '≈ ' + deutsch(e.radiusAussen / GEHTEMPO_M_PRO_MIN, 0) + ' Min.';
-  document.getElementById('kopf-innen').textContent = '≤ ' + deutsch(e.radiusInnen, 0) + ' m';
-  document.getElementById('kopf-aussen').textContent = '≤ ' + deutsch(e.radiusAussen, 0) + ' m';
 
   // Bedienelemente auf die aktuellen Werte setzen
   document.getElementById('farbe-frei').value = e.farbe.toLowerCase();
