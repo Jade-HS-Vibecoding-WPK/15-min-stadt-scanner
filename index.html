@@ -2,7 +2,9 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <!-- Handy: Farbe der Browserleiste passend zum Hintergrund -->
+  <meta name="theme-color" content="#F2F2F7">
   <title>Stadt in 15 – Standortanalyse Oldenburg</title>
 
   <!-- Leaflet: kostenlose Karten-Bibliothek (Aussehen der Karte) -->
@@ -39,6 +41,9 @@
 
   <!-- Rechter Bereich: Side-Panel -->
   <aside id="panel">
+    <!-- Nur auf dem Handy sichtbar: Griff zum Auf- und Zuziehen des Blatts -->
+    <button type="button" id="blatt-griff" class="blatt-griff" aria-expanded="false"
+            aria-label="Panel vergrößern" data-en-aria-label="Expand panel"><span></span></button>
     <header>
       <div class="kopf-zeile">
         <p class="label" data-en="Site analysis · Oldenburg">Standortanalyse Oldenburg</p>

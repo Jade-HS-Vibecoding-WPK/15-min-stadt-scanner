@@ -75,6 +75,7 @@ html, body { height: 100%; }
 
 body {
   height: 100vh;
+  height: 100dvh;   /* Handy: Höhe ohne die ein-/ausblendende Browserleiste */
   overflow: hidden;
   background: var(--bg);
   color: var(--ink);
@@ -1280,17 +1281,70 @@ path.weg-ziel  { animation: einblenden 0.4s var(--weich) 0.1s both; }
 }
 
 /* ===== 14. Schmale Bildschirme (Handy): Panel als Blatt unten ===== */
+.blatt-griff { display: none; }   /* Griff nur auf dem Handy */
+
 @media (max-width: 700px) {
+  /* Blatt unten (wie bei Apple Karten): klein = Karte gut sichtbar,
+     groß = alle Details. Umschalten per Griff (tippen oder wischen). */
   #panel {
     top: auto;
-    left: 10px;
-    right: 10px;
-    bottom: 10px;
+    left: 8px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));   /* Abstand zur iPhone-Leiste */
     width: auto;
-    max-height: 55vh;
+    max-height: 44vh;
+    max-height: 44dvh;
+    padding: 4px 18px 14px;
+    gap: 12px;
+    border-radius: 20px;
+    transition: max-height 0.4s var(--weich);
   }
+  #panel.gross { max-height: 86vh; max-height: 86dvh; }
+
+  .blatt-griff {
+    display: flex;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 100%;
+    margin-bottom: -6px;
+    padding: 6px 0 4px;
+    border: none;
+    background: none;
+    touch-action: none;
+  }
+  .blatt-griff span { width: 38px; height: 5px; border-radius: 3px; background: rgba(60, 60, 67, 0.3); }
+
+  /* Kopf kompakter */
+  #panel header .label { margin-bottom: 4px; }
+  h1 { font-size: 24px; }
+
+  /* iPhone zoomt beim Tippen in Felder unter 16 px hinein – deshalb 16 px */
+  #suche-eingabe { font-size: 16px; }
+
   .legend { display: none; }
-  .glas-fenster { left: 10px; right: 10px; bottom: 10px; width: auto; z-index: 1003; }
   .leaflet-right { right: 0; }
-  .leaflet-bottom.leaflet-right { bottom: calc(55vh + 20px); }
+  .leaflet-bottom.leaflet-right { bottom: calc(44dvh + 14px); }
+
+  /* Fenster (Darstellung, Vergleich) als Blatt über dem Panel */
+  .glas-fenster,
+  .glas-fenster.vergleich-fenster {
+    left: 8px;
+    right: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom));
+    width: auto;
+    max-height: 80dvh;
+    overflow-y: auto;
+    z-index: 1003;
+  }
+  .vgl-tabelle tbody th, .vgl-tabelle thead th:first-child { width: 92px; }
+  .vgl-tabelle tbody th .sym { display: none; }
+  .vgl-tabelle tbody th { white-space: normal; line-height: 1.25; }
+  .vgl-name { max-width: 64px; }
+}
+
+/* Geräte ohne Maus (Handy, Tablet): was sonst erst beim Darüberfahren
+   erscheint, ist immer sichtbar */
+@media (hover: none) {
+  .vgl-weg { opacity: 1; }
+  .ergebnis:has(.ergebnis-zeile:not(:disabled):hover) { transform: none; }
 }

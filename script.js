@@ -144,6 +144,8 @@ const analyse = L.layerGroup().addTo(map);
 
 // 4) Beim Klick auf die Karte: Standort an der angeklickten Stelle analysieren
 map.on('click', function (event) {
+  // Handy: Blatt klein machen, damit man das Ergebnis auf der Karte sieht
+  if (istHandy() && typeof setzeBlatt === 'function') setzeBlatt(false);
   document.getElementById('suche-status').textContent = '';
   letzteAdresse = '';   // Klick = keine Adresse bekannt
   analysiereStandort(event.latlng);
@@ -1091,6 +1093,10 @@ function verdeckterRand() {
   const panel = document.getElementById('panel');
   const r = { left: panel.offsetLeft, top: panel.offsetTop };
   let rand;
+  if (istHandy()) {
+    // Handy: immer mit dem kleinen Blatt rechnen (44 % der Höhe + Rand)
+    return { rechts: 0, unten: Math.round(window.innerHeight * 0.44) + 16 };
+  }
   if (r.top > window.innerHeight / 3) {
     rand = { rechts: 0, unten: window.innerHeight - r.top };
   } else {
@@ -2378,6 +2384,39 @@ document.querySelectorAll('.sprache-knopf').forEach(function (knopf) {
     speichereEinstellungen();
     aktualisiereTexte();
   });
+});
+
+// ------------------------------------------------------------
+// Handy: Panel als Blatt unten – Griff tippen oder wischen
+// ------------------------------------------------------------
+const panelElement = document.getElementById('panel');
+const blattGriff = document.getElementById('blatt-griff');
+
+function istHandy() { return window.matchMedia('(max-width: 700px)').matches; }
+
+function setzeBlatt(gross) {
+  panelElement.classList.toggle('gross', gross);
+  blattGriff.setAttribute('aria-expanded', gross ? 'true' : 'false');
+  blattGriff.setAttribute('aria-label', gross ? tx('Panel verkleinern', 'Collapse panel') : tx('Panel vergrößern', 'Expand panel'));
+  if (!gross) panelElement.scrollTop = 0;   // klein: wieder oben anfangen
+}
+blattGriff.addEventListener('click', function () { setzeBlatt(!panelElement.classList.contains('gross')); });
+
+// Wischen auf dem Griff: nach oben = groß, nach unten = klein
+let wischStart = null;
+blattGriff.addEventListener('touchstart', function (e) { wischStart = e.touches[0].clientY; }, { passive: true });
+blattGriff.addEventListener('touchend', function (e) {
+  if (wischStart === null) return;
+  const weg = e.changedTouches[0].clientY - wischStart;
+  wischStart = null;
+  if (Math.abs(weg) < 20) return;          // kurzes Tippen → "click" übernimmt
+  e.preventDefault();                       // kein zusätzlicher Klick
+  setzeBlatt(weg < 0);
+});
+
+// Wer auf dem Handy die Aufschlüsselung öffnet, braucht Platz → Blatt groß
+document.getElementById('bewertung-knopf').addEventListener('click', function () {
+  if (istHandy() && this.getAttribute('aria-expanded') === 'true') setzeBlatt(true);
 });
 
 // Beim Laden der Seite einmal anwenden (gespeicherte Einstellungen)
