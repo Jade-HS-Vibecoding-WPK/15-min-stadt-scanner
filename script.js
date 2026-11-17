@@ -882,7 +882,9 @@ async function kartenBild(format, pixelRatio) {
     skipFonts: !location.protocol.startsWith('http'),
     // Zoom-Knöpfe (+/−) gehören nicht aufs Poster → weglassen
     filter: function (element) {
-      return !(element.classList && element.classList.contains('leaflet-control-zoom'));
+      // (auch der Knopf "Versorgungskarte")
+      return !(element.classList && (element.classList.contains('leaflet-control-zoom') ||
+                                     element.classList.contains('heat-knopf')));
     }
   };
   // Glas-Effekt kurz ausschalten (Unschärfe lässt sich nicht exportieren)
@@ -1583,6 +1585,7 @@ function radienGeaendert() {
 
   // Gibt es schon einen Standort? Dann neu analysieren (neue Kreise, neue Zählung).
   // Kurz warten, falls mehrmals schnell auf +/− geklickt wird.
+  if (heatAn) zeigeHeatmap();   // Versorgungskarte mit neuen Radien
   clearTimeout(radienTimer);
   if (letzterPunkt) radienTimer = setTimeout(function () { analysiereStandort(letzterPunkt); }, 350);
 }
@@ -1604,6 +1607,171 @@ function hexZuRgb(hex) {
   const zahl = parseInt(hex.slice(1), 16);
   return [(zahl >> 16) & 255, (zahl >> 8) & 255, zahl & 255];
 }
+
+// ------------------------------------------------------------
+// Versorgungskarte (Heatmap): die 15-Minuten-Bewertung für ganz
+// Oldenburg + Umland – nicht nur für einen Punkt.
+//
+// So funktioniert es:
+//   1. Das Datengebiet wird in ein Raster aus 50-m-Feldern geteilt.
+//   2. Um jedes Ziel (Haltestelle, Supermarkt …) werden alle Felder im
+//      inneren Kreis mit "2 Punkten", im äußeren mit "1 Punkt" markiert.
+//      (Gleiche Regel wie bei der Bewertung im Panel.)
+//   3. Pro Feld werden die Punkte der 4 Kategorien addiert (0–8) und
+//      als Farbe gemalt: rot = schwach, grün = sehr gut versorgt.
+// ------------------------------------------------------------
+const HEAT_RASTER = 50;   // Meter pro Rasterfeld
+// Farben für 1–8 Punkte (Apple-Systemfarben von Rot über Gelb zu Grün)
+const HEAT_FARBEN = [null,
+  [255, 59, 48], [255, 100, 40], [255, 149, 0], [255, 179, 0],
+  [255, 204, 0], [190, 210, 60], [110, 200, 80], [52, 199, 89]];
+
+// Eigene Ebene unter den Kreisen, damit diese oben bleiben
+map.createPane('heatmap');
+map.getPane('heatmap').style.zIndex = 350;
+map.getPane('heatmap').style.pointerEvents = 'none';
+
+let heatEbene = null;
+let heatAn = false;
+
+function berechneHeatmap() {
+  const g = OSM_DATEN.gebiet;                      // [West, Süd, Ost, Nord]
+  const breiteMitte = (g[1] + g[3]) / 2 * Math.PI / 180;
+  const mY = 111320;                                // Meter pro Grad Breite
+  const mX = 111320 * Math.cos(breiteMitte);        // Meter pro Grad Länge
+  const R = HEAT_RASTER;
+  const spalten = Math.ceil((g[2] - g[0]) * mX / R);
+  const zeilen = Math.ceil((g[3] - g[1]) * mY / R);
+  const rI = einstellungen.radiusInnen, rA = einstellungen.radiusAussen;
+  const rI2 = rI * rI, rA2 = rA * rA;
+
+  // Für jede Kategorie ein Feld mit 0, 1 oder 2 Punkten pro Rasterfeld
+  const punkte = {};
+  KATEGORIEN.forEach(function (k) { punkte[k.id] = new Uint8Array(spalten * zeilen); });
+
+  // Umrechnung Grad → Meter (x nach Osten, y nach Süden; Zeile 0 = Norden)
+  const zuX = function (lng) { return (lng - g[0]) * mX; };
+  const zuY = function (lat) { return (g[3] - lat) * mY; };
+
+  // Alle Felder um einen Punkt (x, y) markieren
+  function markiere(feld, x, y) {
+    const c0 = Math.max(0, Math.floor((x - rA) / R)), c1 = Math.min(spalten - 1, Math.floor((x + rA) / R));
+    const z0 = Math.max(0, Math.floor((y - rA) / R)), z1 = Math.min(zeilen - 1, Math.floor((y + rA) / R));
+    for (let z = z0; z <= z1; z++) {
+      const dy = (z + 0.5) * R - y;
+      for (let c = c0; c <= c1; c++) {
+        const dx = (c + 0.5) * R - x;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > rA2) continue;
+        const wert = d2 <= rI2 ? 2 : 1;
+        const i = z * spalten + c;
+        if (wert > feld[i]) feld[i] = wert;
+      }
+    }
+  }
+
+  OSM_DATEN.features.forEach(function (ort) {
+    const feld = punkte[ort.properties.kat];
+    const geo = ort.geometry;
+    if (geo.type === 'Point') {
+      markiere(feld, zuX(geo.coordinates[0]), zuY(geo.coordinates[1]));
+      return;
+    }
+    // Parks: vom Rand aus messen (Ecken des Umrisses) …
+    const polygone = geo.type === 'Polygon' ? [geo.coordinates] : geo.coordinates;
+    polygone.forEach(function (polygon) {
+      let lx = null, ly = null, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      polygon[0].forEach(function (ecke) {
+        const x = zuX(ecke[0]), y = zuY(ecke[1]);
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+        // dicht beieinander liegende Ecken überspringen (spart Rechenzeit)
+        if (lx === null || (x - lx) * (x - lx) + (y - ly) * (y - ly) > R * R / 4) {
+          markiere(feld, x, y);
+          lx = x; ly = y;
+        }
+      });
+      // … und Felder im Park selbst zählen voll (2 Punkte)
+      for (let z = Math.max(0, Math.floor(minY / R)); z <= Math.min(zeilen - 1, Math.floor(maxY / R)); z++) {
+        for (let c = Math.max(0, Math.floor(minX / R)); c <= Math.min(spalten - 1, Math.floor(maxX / R)); c++) {
+          const mitte = { lng: g[0] + (c + 0.5) * R / mX, lat: g[3] - (z + 0.5) * R / mY };
+          if (punktInPolygon(mitte, polygon)) feld[z * spalten + c] = 2;
+        }
+      }
+    });
+  });
+
+  // Malen: ein Pixel pro Rasterfeld, Farbe nach Summe der Punkte
+  const leinwand = document.createElement('canvas');
+  leinwand.width = spalten;
+  leinwand.height = zeilen;
+  const ctx = leinwand.getContext('2d');
+  const bild = ctx.createImageData(spalten, zeilen);
+  const statistik = new Array(9).fill(0);
+  for (let i = 0; i < spalten * zeilen; i++) {
+    let summe = 0;
+    KATEGORIEN.forEach(function (k) { summe += punkte[k.id][i]; });
+    statistik[summe]++;
+    if (summe === 0) continue;   // gar nichts erreichbar → durchsichtig
+    const f = HEAT_FARBEN[summe];
+    bild.data[i * 4] = f[0]; bild.data[i * 4 + 1] = f[1]; bild.data[i * 4 + 2] = f[2];
+    // je besser versorgt, desto kräftiger (schwache Flächen bleiben zurückhaltend)
+    bild.data[i * 4 + 3] = Math.round(255 * (0.3 + 0.7 * summe / 8));
+  }
+  ctx.putImageData(bild, 0, 0);
+
+  return {
+    url: leinwand.toDataURL(),
+    // Grenzen des Bildes (das Raster ist minimal größer als das Datengebiet)
+    grenzen: [[g[3] - zeilen * R / mY, g[0]], [g[3], g[0] + spalten * R / mX]],
+    statistik: statistik
+  };
+}
+
+function zeigeHeatmap() {
+  if (heatEbene) { map.removeLayer(heatEbene); heatEbene = null; }
+  if (!heatAn || !window.OSM_DATEN) return;
+  const ergebnis = berechneHeatmap();
+  heatEbene = L.imageOverlay(ergebnis.url, ergebnis.grenzen, {
+    pane: 'heatmap', opacity: 0.6, className: 'heatmap', interactive: false
+  }).addTo(map);
+}
+
+function schalteHeatmap() {
+  heatAn = !heatAn;
+  heatKnopf.classList.toggle('aktiv', heatAn);
+  heatKnopf.setAttribute('aria-pressed', heatAn ? 'true' : 'false');
+  document.getElementById('legende-heat').hidden = !heatAn;
+  if (heatAn) {
+    heatKnopf.classList.add('rechnet');
+    // kurz warten, damit der Knopf schon reagiert, bevor gerechnet wird
+    setTimeout(function () {
+      zeigeHeatmap();
+      heatKnopf.classList.remove('rechnet');
+      // Nur wer sehr nah dran ist (Straßen-Ebene), wird eine Stufe
+      // herausgezoomt – sonst bleibt der Ausschnitt, wie er ist
+      if (map.getZoom() >= 16) map.setZoom(map.getZoom() - 1);
+    }, 30);
+  } else {
+    zeigeHeatmap();
+  }
+}
+
+// Knopf "Versorgungskarte" auf der Karte (oben links, unter dem Zoom)
+let heatKnopf = null;
+const HeatSteuerung = L.Control.extend({
+  options: { position: 'topleft' },
+  onAdd: function () {
+    heatKnopf = L.DomUtil.create('button', 'heat-knopf');
+    heatKnopf.type = 'button';
+    heatKnopf.title = '15-Minuten-Bewertung für ganz Oldenburg einblenden';
+    heatKnopf.setAttribute('aria-pressed', 'false');
+    heatKnopf.innerHTML = '<span class="heat-symbol" aria-hidden="true"></span><span>Versorgungskarte</span>';
+    L.DomEvent.disableClickPropagation(heatKnopf);
+    L.DomEvent.on(heatKnopf, 'click', schalteHeatmap);
+    return heatKnopf;
+  }
+});
+new HeatSteuerung().addTo(map);
 
 // Beim Laden der Seite einmal anwenden (gespeicherte Einstellungen)
 wendeDarstellungAn();
