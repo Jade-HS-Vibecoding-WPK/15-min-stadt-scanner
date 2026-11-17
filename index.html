@@ -87,16 +87,11 @@
            (Die Infrastruktur-Zahlen stehen jetzt in der Aufschlüsselung.) -->
       <div class="weitere"><div class="weitere-innen">
 
-      <!-- 2) Einzugsbereiche (Fläche, Fußweg, Gehzeit) -->
-      <p class="label abschnitt"><span class="nr">02</span>Einzugsbereiche</p>
-      <table class="tabelle">
-        <thead>
-          <tr><th>Radius</th><th>Fläche</th><th>Fußweg ca.</th><th>Gehzeit ca.</th></tr>
-        </thead>
-        <tbody id="vergleich-zeilen">
-          <!-- Zeilen werden von script.js eingefügt -->
-        </tbody>
-      </table>
+      <!-- 2) Erreichbarkeit: Zeitstrahl 0–15 Min. mit dem nächsten Ziel
+              je Kategorie; die farbigen Zonen sind die beiden Kreise -->
+      <p class="label abschnitt"><span class="nr">02</span>Erreichbarkeit zu Fuß</p>
+      <div class="zeitstrahl" id="zeitstrahl"><!-- wird von script.js gezeichnet --></div>
+      <p class="zs-kreise mono" id="vergleich-zeilen"><!-- Kreise: Gehzeit + Fläche --></p>
 
       <!-- Annahmen und Datenquelle als eine ruhige Fußnote -->
       <p class="anmerkung"><span id="vergleich-annahme"></span> <span id="infra-status"></span></p>

@@ -412,6 +412,7 @@ function zeigeBewertung(b) {
   const knopf = document.getElementById('bewertung-knopf');
   entferneWeg();
   zeichneRing(b);
+  zeichneZeitstrahl(b);
 
   if (!b) {
     cancelAnimationFrame(zahlAnimation);
@@ -453,6 +454,58 @@ function zeichneRing(b) {
       ring.querySelectorAll('.ring-wert').forEach(function (pfad, i) {
         pfad.style.transitionDelay = (WENIG_BEWEGUNG ? 0 : 0.15 + i * 0.08) + 's';
         pfad.style.strokeDashoffset = pfad.dataset.ziel;
+      });
+    });
+  });
+}
+
+// --- Zeitstrahl: Minuten-Achse, auf der das nächste Ziel jeder
+//     Kategorie als Symbol sitzt. Die zwei Zonen entsprechen den Kreisen.
+function zeichneZeitstrahl(b) {
+  const feld = document.getElementById('zeitstrahl');
+  if (!b) { feld.innerHTML = '<p class="anmerkung">Keine Daten für diesen Ort.</p>'; return; }
+
+  const minuten = function (meter) { return meter * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN; };
+  const tInnen = minuten(einstellungen.radiusInnen);
+  const tAussen = minuten(einstellungen.radiusAussen);
+  const MAX = Math.max(15, Math.ceil(tAussen) + 2);   // Achse: 0–15 Min.
+  const pos = function (t) { return Math.min(100, t / MAX * 100); };
+
+  let html = '<div class="zs-flaeche">' +
+    '<span class="zs-zone zs-innen" style="width:' + pos(tInnen) + '%"></span>' +
+    '<span class="zs-zone zs-aussen" style="left:' + pos(tInnen) + '%;width:' + (pos(tAussen) - pos(tInnen)) + '%"></span>';
+
+  b.details.forEach(function (d) {
+    const n = d.naechstes;
+    const t = n ? minuten(n.entfernung) : null;
+    const text = t === null ? 'über 3 km' : (t > MAX ? '› ' + MAX + ' Min.' : Math.max(1, Math.round(t)) + ' Min.');
+    const x = t === null ? 100 : pos(t);
+    html += '<button type="button" class="zs-bahn" data-kat="' + d.kat.id + '"' + (n ? '' : ' disabled') +
+      ' title="' + d.kat.name + (n && n.name ? ': ' + n.name : '') + '">' +
+      '<span class="zs-linie"></span>' +
+      '<span class="zs-marke' + (x > 72 ? ' links' : '') + '" data-x="' + x + '" style="left:0">' +
+        symbolSvg(d.kat.id) + '<span class="zs-zeit">' + text + '</span>' +
+      '</span></button>';
+  });
+  // Achse: 0 · Grenze innerer Kreis · Grenze äußerer Kreis (in Minuten)
+  const minText = function (t) { return deutsch(t, Math.abs(t - Math.round(t)) < 0.05 ? 0 : 1); };
+  html += '</div><div class="zs-achse">' +
+    '<span style="left:0">0</span>' +
+    '<span style="left:' + pos(tInnen) + '%">' + minText(tInnen) + '</span>' +
+    '<span style="left:' + pos(tAussen) + '%">' + minText(tAussen) + ' Min.</span></div>';
+  feld.innerHTML = html;
+
+  // Klick auf eine Bahn: Weg zum Ziel auf der Karte (wie in der Aufschlüsselung)
+  feld.querySelectorAll('.zs-bahn').forEach(function (bahn, i) {
+    bahn.addEventListener('click', function () { zeigeWeg(b.details[i], bahn); });
+  });
+
+  // Symbole gleiten von 0 an ihre Stelle (nacheinander)
+  requestAnimationFrame(function () {
+    requestAnimationFrame(function () {
+      feld.querySelectorAll('.zs-marke').forEach(function (m, i) {
+        m.style.transitionDelay = (WENIG_BEWEGUNG ? 0 : 0.2 + i * 0.07) + 's';
+        m.style.left = m.dataset.x + '%';
       });
     });
   });
@@ -531,7 +584,7 @@ let wegKat = null;
 function entferneWeg() {
   if (wegEbene) { analyse.removeLayer(wegEbene); wegEbene = null; }
   wegKat = null;
-  document.querySelectorAll('.auf-zeile.aktiv').forEach(function (z) { z.classList.remove('aktiv'); });
+  document.querySelectorAll('.auf-zeile.aktiv, .zs-bahn.aktiv').forEach(function (z) { z.classList.remove('aktiv'); });
 }
 
 function zeigeWeg(d, knopf) {
@@ -764,18 +817,15 @@ function zeigeKennzahlen(punkt) {
 //   Fußweg  = Luftlinie × Umwegfaktor
 //   Gehzeit = Fußweg ÷ Gehtempo (m pro Minute)
 function zeigeEinzugsbereiche() {
-  const zeilen = [einstellungen.radiusInnen, einstellungen.radiusAussen].map(function (radius) {
+  // Kurzfassung der beiden Kreise unter dem Zeitstrahl:
+  // Radius · Gehzeit (mit Umweg) · Fläche
+  const teile = [einstellungen.radiusInnen, einstellungen.radiusAussen].map(function (radius, i) {
     const hektar = kreisflaeche(radius) / 10000;
-    const fussweg = radius * UMWEGFAKTOR;
-    const gehzeit = fussweg / GEHTEMPO_M_PRO_MIN;
-    return '<tr>' +
-      '<td>' + deutsch(radius, 0) + ' m</td>' +
-      '<td>' + deutsch(hektar, 1) + ' ha</td>' +
-      '<td>' + deutsch(fussweg, 0) + ' m</td>' +
-      '<td>' + deutsch(gehzeit, 1) + ' Min.</td>' +
-      '</tr>';
+    const gehzeit = radius * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN;
+    return '<span class="zs-kreis zs-kreis-' + (i ? 'aussen' : 'innen') + '"></span>' +
+      deutsch(radius, 0) + ' m ≈ ' + deutsch(gehzeit, 1) + ' Min. · ' + deutsch(hektar, 1) + ' ha';
   });
-  document.getElementById('vergleich-zeilen').innerHTML = zeilen.join('');
+  document.getElementById('vergleich-zeilen').innerHTML = teile.join('<br>');
 
   document.getElementById('vergleich-annahme').textContent =
     'Annahmen: Umwegfaktor ' + deutsch(UMWEGFAKTOR, 1) +

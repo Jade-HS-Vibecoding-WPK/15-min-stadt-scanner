@@ -348,6 +348,95 @@ h1 {
 }
 .auf-unter .mono { font-size: 10.5px; }
 
+/* ===== Zeitstrahl "02 Erreichbarkeit zu Fuß" ===== */
+.zeitstrahl { padding-top: 2px; }
+
+/* Fläche mit den zwei Zonen (= innerer / äußerer Kreis) im Hintergrund */
+.zs-flaeche {
+  position: relative;
+  padding: 2px 0;
+  border-radius: 10px;
+  background: rgba(60, 60, 67, 0.04);
+}
+.zs-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+.zs-innen  { left: 0; border-radius: 10px 0 0 10px;
+             background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.zs-aussen { background: color-mix(in srgb, var(--accent) 7%, transparent);
+             border-left: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+             border-right: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* Eine Bahn pro Kategorie – antippbar */
+.zs-bahn {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.zs-bahn:hover { background: rgba(255, 255, 255, 0.55); }
+.zs-bahn.aktiv { background: rgba(255, 255, 255, 0.9); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); }
+.zs-bahn:disabled { cursor: default; background: none; }
+.zs-linie {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  top: 50%;
+  border-top: 1px solid var(--hair);
+}
+
+/* Symbol + Minuten; gleitet beim Erscheinen von links an seinen Platz */
+.zs-marke {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  transform: translate(-6px, -50%);
+  transition: left 0.9s var(--weich);
+  white-space: nowrap;
+}
+.zs-marke .sym { width: 12px; height: 12px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); }
+.zs-marke .sym-flaeche { width: 15px; }
+.zs-marke.links { flex-direction: row-reverse; transform: translate(calc(-100% + 6px), -50%); }
+.zs-zeit { font-family: var(--mono); font-size: 10.5px; color: var(--ink); }
+
+/* Minuten-Achse unter der Fläche */
+.zs-achse {
+  position: relative;
+  height: 16px;
+  margin: 3px 0 0;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--grey);
+}
+.zs-achse span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.zs-achse span:first-child { transform: none; }
+
+
+/* Kurzfassung der Kreise unter dem Zeitstrahl */
+.zs-kreise { margin-top: 6px; font-size: 10.5px; line-height: 1.6; color: var(--ink); }
+.zs-kreis {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 7px;
+  border-radius: 50%;
+  vertical-align: -1px;
+  border: 1.5px solid var(--accent);
+}
+.zs-kreis-innen { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+.zs-kreis-aussen { border-style: dashed; }
+
 /* Weg zum nächsten Ziel auf der Karte */
 .weg-schild { font-weight: 500; }
 
