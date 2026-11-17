@@ -481,7 +481,7 @@ function zeigeBewertung(b) {
   }
   knopf.disabled = false;
   zaehleHoch(zahl, b.punkte, '');
-  document.getElementById('bewertung-max').textContent = '/' + b.maximum;
+  document.getElementById('bewertung-max').textContent = b.maximum;   // unter dem Bruchstrich
   stufe.textContent = b.stufe;
   fuelleAufschluesselung(b);
 }

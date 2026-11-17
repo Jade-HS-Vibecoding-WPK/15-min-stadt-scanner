@@ -246,24 +246,34 @@ h1 {
   stroke-dasharray: 100;
   transition: stroke-dashoffset 0.9s var(--weich);
 }
+/* Zahl in der Mitte: Punkte groß, darunter klein "/8" bzw. "/10" –
+   übereinander, damit auch "10/10" Luft im Ring hat */
 .ring-zahl {
   position: absolute;
   inset: 0;
   display: flex;
-  align-items: baseline;
+  flex-direction: column;
+  align-items: center;
   justify-content: center;
-  padding-top: 23px;
+  gap: 1px;
 }
 
 .ergebnis-zahl {
   font-family: var(--mono);
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 600;
   line-height: 1;
   letter-spacing: -0.04em;
   color: var(--accent);
 }
-.ring-max { font-family: var(--mono); font-size: 12px; color: var(--grey); }
+.ring-max {
+  padding-top: 2px;
+  border-top: 1px solid var(--linie);   /* feiner Bruchstrich */
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--grey);
+}
 
 .ergebnis-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ergebnis-text strong { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
