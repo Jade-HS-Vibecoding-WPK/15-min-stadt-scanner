@@ -566,7 +566,7 @@ h1 {
 /* ===== 9. Unterer Block: Darstellung, Export, Namensnennung ===== */
 #unten {
   margin-top: auto;           /* schiebt den Block nach unten */
-  padding-top: 14px;
+  padding-top: 12px;
   border-top: 1px solid var(--linie);
 }
 
@@ -763,33 +763,39 @@ h1 {
 }
 .link-knopf:hover { color: var(--ink); }
 
-/* --- Export: drei Glas-Kapseln in einer Zeile --- */
+/* --- Export: eine Leiste, drei gleich breite Knöpfe --- */
 #export {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 10px;
-  white-space: nowrap;   /* Knöpfe nie umbrechen */
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.25fr;   /* "GeoPackage" ist das längste Wort */
+  gap: 2px;
+  margin-top: 8px;
+  padding: 3px;
+  border-radius: 11px;
+  background: rgba(60, 60, 67, 0.08);
 }
-#export .label { margin: 0 auto 0 0; }   /* "EXPORT" links, Knöpfe rechts */
 
 .export-link {
-  padding: 5px 10px;
-  border: 1px solid var(--glas-rand);
-  border-radius: 999px;
-  background: var(--glas-hell);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(0, 0, 0, 0.06);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 8px;
+  background: none;
   font: inherit;
   font-size: 12px;
   font-weight: 500;
   color: var(--ink);
-  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, box-shadow 0.2s, color 0.2s, transform 0.25s var(--feder);
 }
-.export-link:hover { background: #fff; }
-.export-link::after { content: ' ↓'; color: var(--grey); }
-.export-link:hover { color: var(--accent); }
-.export-link:hover::after { color: var(--accent); }
-.export-link:disabled { opacity: 0.4; cursor: wait; }
+/* kleiner Download-Pfeil vor dem Namen */
+.export-link::before { content: '↓'; font-size: 11px; color: var(--grey); transition: color 0.2s; }
+.export-link:hover { background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); }
+.export-link:hover::before { color: var(--accent); }
+.export-link:active { transform: scale(0.95); transition-duration: 0.08s; }
+.export-link:disabled { opacity: 0.4; }
 
 /* --- Namensnennung --- */
 footer {
@@ -1001,9 +1007,6 @@ path.park { animation: einblenden 0.6s var(--weich) 0.15s both; }
 .farbfeld { transition: transform 0.25s var(--feder), outline-color 0.2s; }
 .farbfeld:hover { transform: scale(1.15); }
 .farbfeld:active { transform: scale(0.9); }
-.export-link { transition: background 0.2s, color 0.2s, transform 0.25s var(--feder), box-shadow 0.2s; }
-.export-link:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 #fff, 0 4px 12px rgba(0, 0, 0, 0.08); }
-.export-link:active { transform: scale(0.94); transition-duration: 0.08s; }
 #suche-knopf { transition: background 0.2s, filter 0.2s, transform 0.25s var(--feder); }
 #suche-knopf:active { transform: scale(0.86); transition-duration: 0.08s; }
 .leaflet-bar a { transition: background 0.2s; }
