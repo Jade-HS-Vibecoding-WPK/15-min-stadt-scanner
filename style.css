@@ -1,5 +1,5 @@
 /* ============================================================
-   15-Minuten-Stadt-Scanner – Gestaltung („Glas“-Look)
+   Stadt in 15 (15-Minuten-Stadt-Scanner) – Gestaltung („Glas“-Look)
    Die Karte füllt das ganze Fenster. Panel, Legende und Knöpfe
    schweben darüber wie mattiertes Glas (Unschärfe + Transparenz,
    feiner heller Rand, weicher Schatten, runde Ecken).
@@ -138,7 +138,7 @@ body {
 }
 
 h1 {
-  font-size: 25px;
+  font-size: 30px;
   font-weight: 600;
   line-height: 1.05;
   letter-spacing: -0.025em;
@@ -193,11 +193,21 @@ h1 {
   border: none;
   border-radius: 50%;
   background: var(--accent);   /* Hauptknopf in Akzentfarbe, wie bei Apple */
-  font: inherit;
-  font-size: 15px;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
   color: #fff;
   cursor: pointer;
+}
+#suche-knopf svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 #suche-knopf:hover { filter: brightness(1.1); }
 #suche-knopf:disabled { opacity: 0.4; cursor: wait; }
@@ -340,6 +350,30 @@ h1 {
   padding: 0 24px 6px;  /* Schatten der Kachel nicht abgeschnitten wird */
 }
 .fokus .weitere { grid-template-rows: 0fr; opacity: 0; }
+
+/* ===== Sprache: kleiner Umschalter DE / EN oben rechts im Panel ===== */
+.kopf-zeile { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.sprache {
+  display: flex;
+  gap: 1px;
+  margin-top: -3px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(60, 60, 67, 0.08);
+}
+.sprache-knopf {
+  padding: 2px 7px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--grey);
+  transition: background 0.2s, color 0.2s;
+}
+.sprache-knopf.aktiv { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
 
 /* ===== Zielgruppen-Profil: Umschalter unter der Suche ===== */
 .profil-segment {
@@ -631,6 +665,60 @@ h1 {
 }
 .zs-kreis-innen { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 .zs-kreis-aussen { border-style: dashed; }
+
+/* Ortsliste unter einer Kategorie (klappt weich auf) */
+.auf-zeile { position: relative; }
+.auf-details {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.4s var(--weich);
+}
+.auf-offen .auf-details { grid-template-rows: 1fr; }
+.auf-details-innen { overflow: hidden; min-height: 0; }
+.auf-offen .auf-details-innen { padding: 2px 0 8px 19px; }
+.ort-summe { margin: 2px 0 4px; font-size: 11px; font-weight: 600; color: var(--ink); }
+.ort-leer, .ort-hinweis { margin: 4px 0 2px; font-size: 10.5px; color: var(--grey); }
+
+.ort-zeile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 6px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  transition: background 0.2s;
+}
+.ort-zeile[hidden] { display: none; }
+.ort-zeile:hover { background: rgba(255, 255, 255, 0.75); }
+.ort-zeile.aktiv { background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08); }
+/* Punkt links: voll = im inneren Kreis, Ring = nur im äußeren */
+.ort-lage {
+  flex-shrink: 0;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent);
+}
+.ort-zeile.innen .ort-lage { background: var(--accent); }
+.ort-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.ort-name { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ort-info { font-size: 10.5px; color: var(--grey); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ort-weg { flex-shrink: 0; font-size: 10px; line-height: 1.3; text-align: right; color: var(--grey); }
+.ort-mehr {
+  margin: 2px 0 0 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--accent);
+}
 
 /* Weg zum nächsten Ziel auf der Karte */
 .weg-schild { font-weight: 500; }

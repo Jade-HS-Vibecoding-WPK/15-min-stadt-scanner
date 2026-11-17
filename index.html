@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>15-Minuten-Stadt-Scanner</title>
+  <title>Stadt in 15 – Standortanalyse Oldenburg</title>
 
   <!-- Leaflet: kostenlose Karten-Bibliothek (Aussehen der Karte) -->
   <!-- crossorigin: erlaubt dem PNG-Export, diese Datei auszulesen -->
@@ -19,7 +19,7 @@
     <div id="map" class="stil-grau"></div>
 
     <div class="legend">
-      <p class="label">Legende</p>
+      <p class="label" data-en="Legend">Legende</p>
       <ul>
         <!-- Texte werden von script.js passend zu den eingestellten Radien gesetzt -->
         <li><span class="swatch swatch-400"></span><span id="legende-innen">400 m</span> <span class="mono" id="legende-innen-min">≈ 5 Min.</span></li>
@@ -27,11 +27,11 @@
         <!-- Kategorien je nach Profil: werden von script.js eingefügt -->
         <li id="legende-kategorien-ende" hidden></li>
         <!-- nur sichtbar, wenn Varianten gemerkt sind -->
-        <li id="legende-varianten" hidden><span class="legende-symbol"><span class="legende-buchstabe">A</span></span><span>Variante</span></li>
+        <li id="legende-varianten" hidden><span class="legende-symbol"><span class="legende-buchstabe">A</span></span><span data-en="Site option">Variante</span></li>
         <!-- nur sichtbar, wenn die Versorgungskarte an ist -->
         <li id="legende-heat" class="legende-heat" hidden>
           <span class="heat-verlauf"></span>
-          <span class="heat-text">Versorgung<br><span class="mono">schwach → sehr gut</span></span>
+          <span class="heat-text" data-en='Access to amenities<br><span class="mono">poor → very good</span>'>Versorgung<br><span class="mono">schwach → sehr gut</span></span>
         </li>
       </ul>
     </div>
@@ -40,23 +40,33 @@
   <!-- Rechter Bereich: Side-Panel -->
   <aside id="panel">
     <header>
-      <p class="label">Standortanalyse</p>
-      <h1>15-Minuten-<br>Stadt-Scanner</h1>
+      <div class="kopf-zeile">
+        <p class="label" data-en="Site analysis · Oldenburg">Standortanalyse Oldenburg</p>
+        <!-- Sprache umschalten: Deutsch / Englisch -->
+        <div class="sprache" role="radiogroup" aria-label="Sprache / Language">
+          <button type="button" role="radio" class="sprache-knopf" data-sprache="de" title="Deutsch">DE</button>
+          <button type="button" role="radio" class="sprache-knopf" data-sprache="en" title="English">EN</button>
+        </div>
+      </div>
+      <h1>Stadt in 15</h1>
     </header>
 
     <!-- Adresssuche (Nominatim, der kostenlose Suchdienst von OpenStreetMap) -->
     <form id="suche">
-      <label class="unsichtbar" for="suche-eingabe">Adresse suchen</label>
+      <label class="unsichtbar" for="suche-eingabe" data-en="Search address">Adresse suchen</label>
       <div class="suche-zeile">
-        <input id="suche-eingabe" type="search" placeholder="z. B. Schlossplatz, Oldenburg" autocomplete="off" required>
-        <button type="submit" id="suche-knopf" title="Suchen" aria-label="Suchen">→</button>
+        <input id="suche-eingabe" type="search" placeholder="z. B. Schlossplatz, Oldenburg" data-en-placeholder="e.g. Schlossplatz, Oldenburg" autocomplete="off" required>
+        <button type="submit" id="suche-knopf" title="Suchen" aria-label="Suchen" data-en-title="Search" data-en-aria-label="Search">
+          <!-- Pfeil als kleine Zeichnung: genau mittig im Kreis (ein Schrift-Pfeil sitzt oft schief) -->
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9M8.5 4l4 4-4 4"/></svg>
+        </button>
       </div>
       <p class="anmerkung" id="suche-status"></p>
     </form>
 
     <!-- Zielgruppe: bestimmt, welche Kategorien in die Bewertung eingehen -->
     <section id="profil">
-      <div class="profil-segment" role="radiogroup" aria-label="Zielgruppe">
+      <div class="profil-segment" role="radiogroup" aria-label="Zielgruppe" data-en-aria-label="Target group">
         <button type="button" role="radio" class="profil-knopf" data-profil="alltag">Alltag</button>
         <button type="button" role="radio" class="profil-knopf" data-profil="familie">Familie</button>
         <button type="button" role="radio" class="profil-knopf" data-profil="senioren">Senioren</button>
@@ -66,7 +76,7 @@
 
     <!-- Hinweis: verschwindet, sobald ein Standort analysiert wurde -->
     <section class="hint" id="hinweis">
-      <p>Oder klicke auf einen beliebigen Punkt der Karte, um die fußläufigen Einzugsbereiche anzuzeigen.</p>
+      <p data-en="Or click anywhere on the map to see what is within walking distance.">Oder klicke auf einen beliebigen Punkt der Karte, um die fußläufigen Einzugsbereiche anzuzeigen.</p>
     </section>
 
     <!-- Kennzahlen: erst sichtbar, wenn ein Punkt angeklickt wurde -->
@@ -74,9 +84,9 @@
       <!-- 1) Ergebnis zuerst: die 15-Minuten-Bewertung, groß -->
       <div class="ergebnis" id="ergebnis">
         <div class="kachel-kopf">
-          <p class="label"><span class="nr">01</span>Bewertung · <span id="profil-name">Alltag</span></p>
+          <p class="label"><span class="nr">01</span><span data-en="Score">Bewertung</span></p>
           <!-- Standort als Variante merken (für den Vergleich) -->
-          <button type="button" id="variante-knopf" class="chip" title="Diesen Standort für den Variantenvergleich merken">＋ Variante</button>
+          <button type="button" id="variante-knopf" class="chip" title="Diesen Standort für den Variantenvergleich merken" data-en-title="Save this site to compare it with others">＋ Variante</button>
         </div>
 
         <!-- Ganze Zeile ist ein Knopf: Klick klappt die Aufschlüsselung auf -->
@@ -89,7 +99,7 @@
           <span class="ergebnis-text">
             <strong id="bewertung-stufe"></strong>
             <span class="mono klein" id="wert-koordinaten">–</span>
-            <span class="auf-hinweis">Aufschlüsselung <span class="auf-pfeil" aria-hidden="true">›</span></span>
+            <span class="auf-hinweis"><span data-en="Breakdown">Aufschlüsselung</span> <span class="auf-pfeil" aria-hidden="true">›</span></span>
           </span>
         </button>
 
@@ -97,7 +107,7 @@
         <div class="aufklapp" id="aufschluesselung">
           <div class="aufklapp-innen">
             <ul id="bewertung-liste"></ul>
-            <p class="anmerkung">2 Punkte: Ziel im inneren Kreis · 1 Punkt: im äußeren · Gehzeit mit Umwegfaktor. Zahlen: Ziele im inneren · äußeren Kreis. Zeile antippen zeigt den Weg auf der Karte.</p>
+            <p class="anmerkung" data-en="2 points = destination in the inner circle, 1 point = in the outer one. Numbers: destinations inner · outer. Tap a category to see all places.">2 Punkte = Ziel im inneren Kreis, 1 Punkt = im äußeren. Zahlen: Ziele innen · außen. Kategorie antippen für alle Orte.</p>
           </div>
         </div>
       </div>
@@ -109,7 +119,7 @@
       <!-- 2) Erreichbarkeit: Zeitstrahl 0–15 Min. mit dem nächsten Ziel
               je Kategorie; die farbigen Zonen sind die beiden Kreise -->
       <div class="kachel">
-        <p class="label"><span class="nr">02</span>Erreichbarkeit zu Fuß</p>
+        <p class="label"><span class="nr">02</span><span data-en="Walking access">Erreichbarkeit zu Fuß</span></p>
         <div class="zeitstrahl" id="zeitstrahl"><!-- wird von script.js gezeichnet --></div>
         <p class="zs-kreise mono" id="vergleich-zeilen"><!-- Kreise: Gehzeit + Fläche --></p>
       </div>
@@ -128,7 +138,7 @@
       <svg class="knopf-symbol" viewBox="0 0 16 16" aria-hidden="true">
         <path d="M2 4h7M13 4h1M2 12h1M7 12h7" /><circle cx="11" cy="4" r="2" /><circle cx="5" cy="12" r="2" />
       </svg>
-      <span class="knopf-text">Darstellung anpassen</span>
+      <span class="knopf-text" data-en="Display settings">Darstellung anpassen</span>
       <span class="knopf-farbe" aria-hidden="true"></span>
       <span class="knopf-pfeil" aria-hidden="true">›</span>
     </button>
@@ -136,15 +146,15 @@
     <!-- Export: eine Leiste mit drei gleich breiten Knöpfen
          (gleiche Form wie der Profil-Umschalter oben) -->
     <section id="export" aria-label="Export">
-      <button type="button" id="export-knopf" class="export-link" title="Kartenansicht als Bild (PNG)">PNG</button>
-      <button type="button" id="pdf-knopf" class="export-link" title="Planblatt A3 quer mit Kennzahlen (PDF)">PDF A3</button>
-      <button type="button" id="gpkg-knopf" class="export-link" title="GeoPackage für QGIS: Standort, Kreise, Infrastruktur, Parks (EPSG:25832)">GeoPackage</button>
+      <button type="button" id="export-knopf" class="export-link" title="Kartenansicht als Bild (PNG)" data-en-title="Map view as image (PNG)">PNG</button>
+      <button type="button" id="pdf-knopf" class="export-link" title="Planblatt A3 quer mit Kennzahlen (PDF)" data-en-title="A3 landscape plan sheet with key figures (PDF)">PDF A3</button>
+      <button type="button" id="gpkg-knopf" class="export-link" title="GeoPackage für QGIS: Standort, Kreise, Infrastruktur, Parks (EPSG:25832)" data-en-title="GeoPackage for QGIS: site, circles, amenities, parks (EPSG:25832)">GeoPackage</button>
     </section>
     <p class="anmerkung" id="export-status"></p>
 
     <!-- OSM-Namensnennung (Pflicht) – kompakt in einer Zeile -->
     <footer>
-      © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap-Mitwirkende</a> (ODbL)
+      © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener" data-en="OpenStreetMap contributors">OpenStreetMap-Mitwirkende</a> (ODbL)
     </footer>
     </div>
   </aside>
@@ -152,56 +162,56 @@
 
   <!-- Darstellungs-Fenster (schwebt links neben dem Panel, wie das
        Kontrollzentrum am Mac). Alles wirkt sofort und wird gespeichert. -->
-  <div id="darstellung" class="glas-fenster" role="dialog" aria-label="Darstellung" hidden>
+  <div id="darstellung" class="glas-fenster" role="dialog" aria-label="Darstellung" data-en-aria-label="Display" hidden>
     <div class="fenster-kopf">
-      <strong>Darstellung</strong>
-      <button type="button" id="darstellung-zu" class="fenster-zu" aria-label="Schließen">✕</button>
+      <strong data-en="Display">Darstellung</strong>
+      <button type="button" id="darstellung-zu" class="fenster-zu" aria-label="Schließen" data-en-aria-label="Close">✕</button>
     </div>
 
     <section class="fenster-gruppe">
-      <p class="gruppen-titel">Kartenstil</p>
-      <div class="segment" role="radiogroup" aria-label="Kartenstil">
-        <button type="button" role="radio" class="stil-knopf" data-stil="grau"><span class="stil-vorschau vorschau-grau"></span>Hell</button>
-        <button type="button" role="radio" class="stil-knopf" data-stil="farbig"><span class="stil-vorschau vorschau-farbig"></span>Farbig</button>
-        <button type="button" role="radio" class="stil-knopf" data-stil="dunkel"><span class="stil-vorschau vorschau-dunkel"></span>Dunkel</button>
+      <p class="gruppen-titel" data-en="Map style">Kartenstil</p>
+      <div class="segment" role="radiogroup" aria-label="Kartenstil" data-en-aria-label="Map style">
+        <button type="button" role="radio" class="stil-knopf" data-stil="grau"><span class="stil-vorschau vorschau-grau"></span><span data-en="Light">Hell</span></button>
+        <button type="button" role="radio" class="stil-knopf" data-stil="farbig"><span class="stil-vorschau vorschau-farbig"></span><span data-en="Colour">Farbig</span></button>
+        <button type="button" role="radio" class="stil-knopf" data-stil="dunkel"><span class="stil-vorschau vorschau-dunkel"></span><span data-en="Dark">Dunkel</span></button>
       </div>
     </section>
 
     <section class="fenster-gruppe">
-      <p class="gruppen-titel">Akzentfarbe <span class="gruppen-info">Kreise, Bewertung, Knöpfe</span></p>
+      <p class="gruppen-titel"><span data-en="Accent colour">Akzentfarbe</span> <span class="gruppen-info" data-en="circles, score, buttons">Kreise, Bewertung, Knöpfe</span></p>
       <div class="farb-zeile">
-        <button type="button" class="farbfeld" data-farbe="#007AFF" title="Blau" style="background:#007AFF"></button>
-        <button type="button" class="farbfeld" data-farbe="#FF3B30" title="Rot" style="background:#FF3B30"></button>
+        <button type="button" class="farbfeld" data-farbe="#007AFF" title="Blau" data-en-title="Blue" style="background:#007AFF"></button>
+        <button type="button" class="farbfeld" data-farbe="#FF3B30" title="Rot" data-en-title="Red" style="background:#FF3B30"></button>
         <button type="button" class="farbfeld" data-farbe="#5856D6" title="Indigo" style="background:#5856D6"></button>
-        <button type="button" class="farbfeld" data-farbe="#1D1D1F" title="Graphit" style="background:#1D1D1F"></button>
-        <label class="farbe-eigen" title="Eigene Farbe wählen">
-          <input type="color" id="farbe-frei" aria-label="Eigene Farbe wählen">
+        <button type="button" class="farbfeld" data-farbe="#1D1D1F" title="Graphit" data-en-title="Graphite" style="background:#1D1D1F"></button>
+        <label class="farbe-eigen" title="Eigene Farbe wählen" data-en-title="Choose your own colour">
+          <input type="color" id="farbe-frei" aria-label="Eigene Farbe wählen" data-en-aria-label="Choose your own colour">
         </label>
       </div>
     </section>
 
     <section class="fenster-gruppe">
-      <p class="gruppen-titel">Füllung des inneren Kreises <span class="gruppen-wert mono" id="deckkraft-wert">12 %</span></p>
-      <input type="range" id="deckkraft" min="0" max="50" step="5" aria-label="Füllung des inneren Kreises in Prozent">
+      <p class="gruppen-titel"><span data-en="Inner circle fill">Füllung des inneren Kreises</span> <span class="gruppen-wert mono" id="deckkraft-wert">12 %</span></p>
+      <input type="range" id="deckkraft" min="0" max="50" step="5" aria-label="Füllung des inneren Kreises in Prozent" data-en-aria-label="Inner circle fill in percent">
     </section>
 
     <section class="fenster-gruppe">
-      <p class="gruppen-titel">Radien <span class="gruppen-info">in 50-m-Schritten</span></p>
+      <p class="gruppen-titel"><span data-en="Radii">Radien</span> <span class="gruppen-info" data-en="in 50 m steps">in 50-m-Schritten</span></p>
       <div class="radius-zeile">
-        <span class="radius-name"><span class="zs-kreis zs-kreis-innen"></span>Innen</span>
+        <span class="radius-name"><span class="zs-kreis zs-kreis-innen"></span><span data-en="Inner">Innen</span></span>
         <span class="stepper">
-          <button type="button" class="stepper-knopf" data-ziel="radius-innen" data-schritt="-50" aria-label="Innerer Radius kleiner">−</button>
-          <input type="number" id="radius-innen" min="100" max="1500" step="50" aria-label="Innerer Radius in Metern">
-          <button type="button" class="stepper-knopf" data-ziel="radius-innen" data-schritt="50" aria-label="Innerer Radius größer">+</button>
+          <button type="button" class="stepper-knopf" data-ziel="radius-innen" data-schritt="-50" aria-label="Innerer Radius kleiner" data-en-aria-label="Smaller inner radius">−</button>
+          <input type="number" id="radius-innen" min="100" max="1500" step="50" aria-label="Innerer Radius in Metern" data-en-aria-label="Inner radius in metres">
+          <button type="button" class="stepper-knopf" data-ziel="radius-innen" data-schritt="50" aria-label="Innerer Radius größer" data-en-aria-label="Larger inner radius">+</button>
         </span>
         <span class="radius-min mono" id="radius-innen-min"></span>
       </div>
       <div class="radius-zeile">
-        <span class="radius-name"><span class="zs-kreis zs-kreis-aussen"></span>Außen</span>
+        <span class="radius-name"><span class="zs-kreis zs-kreis-aussen"></span><span data-en="Outer">Außen</span></span>
         <span class="stepper">
-          <button type="button" class="stepper-knopf" data-ziel="radius-aussen" data-schritt="-50" aria-label="Äußerer Radius kleiner">−</button>
-          <input type="number" id="radius-aussen" min="100" max="1500" step="50" aria-label="Äußerer Radius in Metern">
-          <button type="button" class="stepper-knopf" data-ziel="radius-aussen" data-schritt="50" aria-label="Äußerer Radius größer">+</button>
+          <button type="button" class="stepper-knopf" data-ziel="radius-aussen" data-schritt="-50" aria-label="Äußerer Radius kleiner" data-en-aria-label="Smaller outer radius">−</button>
+          <input type="number" id="radius-aussen" min="100" max="1500" step="50" aria-label="Äußerer Radius in Metern" data-en-aria-label="Outer radius in metres">
+          <button type="button" class="stepper-knopf" data-ziel="radius-aussen" data-schritt="50" aria-label="Äußerer Radius größer" data-en-aria-label="Larger outer radius">+</button>
         </span>
         <span class="radius-min mono" id="radius-aussen-min"></span>
       </div>
@@ -209,21 +219,21 @@
     </section>
 
     <div class="fenster-fuss">
-      <button type="button" id="zuruecksetzen" class="link-knopf">Zurücksetzen</button>
-      <span>Änderungen werden gespeichert</span>
+      <button type="button" id="zuruecksetzen" class="link-knopf" data-en="Reset">Zurücksetzen</button>
+      <span data-en="Changes are saved">Änderungen werden gespeichert</span>
     </div>
   </div>
 
   <!-- Variantenvergleich: bis zu 3 gemerkte Standorte nebeneinander -->
-  <div id="vergleich" class="glas-fenster vergleich-fenster" role="dialog" aria-label="Variantenvergleich" hidden>
+  <div id="vergleich" class="glas-fenster vergleich-fenster" role="dialog" aria-label="Variantenvergleich" data-en-aria-label="Compare sites" hidden>
     <div class="fenster-kopf">
-      <strong>Variantenvergleich</strong>
-      <button type="button" id="vergleich-zu" class="fenster-zu" aria-label="Schließen">✕</button>
+      <strong data-en="Compare sites">Variantenvergleich</strong>
+      <button type="button" id="vergleich-zu" class="fenster-zu" aria-label="Schließen" data-en-aria-label="Close">✕</button>
     </div>
     <div id="vergleich-inhalt"><!-- wird von script.js gefüllt --></div>
     <div class="fenster-fuss">
       <span id="vergleich-info"></span>
-      <button type="button" id="vergleich-leeren" class="link-knopf">Alle entfernen</button>
+      <button type="button" id="vergleich-leeren" class="link-knopf" data-en="Remove all">Alle entfernen</button>
     </div>
   </div>
 

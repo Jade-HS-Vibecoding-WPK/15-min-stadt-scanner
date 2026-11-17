@@ -1,5 +1,5 @@
 // ============================================================
-// 15-Minuten-Stadt-Scanner
+// Stadt in 15 – 15-Minuten-Stadt-Scanner für Oldenburg
 // ============================================================
 
 // Apple Text-Schwarz für Linien und Punkte (gleich wie in style.css)
@@ -16,7 +16,8 @@ const STANDARD = {
   deckkraft: 0.12,         // Füllung des inneren Kreises (0 = nur Linie)
   radiusInnen: 400,        // Meter (≈ 5 Min.)
   radiusAussen: 800,       // Meter (≈ 10 Min.)
-  profil: 'alltag'         // Zielgruppe: alltag, familie, senioren, studierende
+  profil: 'alltag',        // Zielgruppe: alltag, familie, senioren, studierende
+  sprache: 'de'            // 'de' = Deutsch, 'en' = Englisch
 };
 const SPEICHER_NAME = 'stadtScannerEinstellungen-v3';   // v3: Apple-Farben
 let einstellungen = ladeEinstellungen();
@@ -32,6 +33,7 @@ function pruefeEinstellungen(e) {
   if (!/^#[0-9a-fA-F]{6}$/.test(e.farbe)) e.farbe = STANDARD.farbe;
   if (['grau', 'farbig', 'dunkel'].indexOf(e.kartenstil) < 0) e.kartenstil = STANDARD.kartenstil;
   if (['alltag', 'familie', 'senioren', 'studierende'].indexOf(e.profil) < 0) e.profil = STANDARD.profil;
+  if (['de', 'en'].indexOf(e.sprache) < 0) e.sprache = STANDARD.sprache;
   e.deckkraft = Math.min(0.5, Math.max(0, Number(e.deckkraft) || 0));
   e.radiusInnen = Math.round(Number(e.radiusInnen)) || STANDARD.radiusInnen;
   e.radiusAussen = Math.round(Number(e.radiusAussen)) || STANDARD.radiusAussen;
@@ -43,6 +45,17 @@ function pruefeEinstellungen(e) {
   }
   return e;
 }
+
+// ------------------------------------------------------------
+// Sprache: Deutsch oder Englisch (Knopf DE / EN oben im Panel)
+//   tx('Deutsch', 'English') gibt den Text in der gewählten Sprache zurück.
+//   lok(objekt, 'name') nimmt objekt.name_en, wenn Englisch gewählt ist.
+// ------------------------------------------------------------
+function tx(de, en) { return einstellungen.sprache === 'en' ? en : de; }
+function lok(obj, feld) {
+  return einstellungen.sprache === 'en' && obj[feld + '_en'] ? obj[feld + '_en'] : obj[feld];
+}
+function minWort() { return tx('Min.', 'min'); }
 
 function speichereEinstellungen() {
   try { localStorage.setItem(SPEICHER_NAME, JSON.stringify(einstellungen)); } catch (e) { /* ignorieren */ }
@@ -57,25 +70,29 @@ const GEHTEMPO_M_PRO_MIN = GEHTEMPO_KMH * 1000 / 60;  // = 80 m pro Minute
 //   form: wie die Orte auf der Karte und in der Legende aussehen
 //   farbe: Apple-Systemfarbe (Füllung), kontur: weißer Rand (wie Apple Karten)
 const ALLE_KATEGORIEN = [
-  { id: 'oepnv',      name: 'ÖPNV-Haltepunkte',     kurz: 'ÖPNV-Haltepunkt',    form: 'kreis',    farbe: '#30B0C7', kontur: '#FFFFFF' },
-  { id: 'versorgung', name: 'Supermärkte & Bäcker', kurz: 'Supermarkt / Bäcker', form: 'quadrat',  farbe: '#FF9500', kontur: '#FFFFFF' },
-  { id: 'bildung',    name: 'Kitas & Schulen',      kurz: 'Kita / Schule',      form: 'dreieck',  farbe: '#AF52DE', kontur: '#FFFFFF' },
-  { id: 'gesundheit', name: 'Ärzte & Apotheken',    kurz: 'Arzt / Apotheke',    form: 'plus',     farbe: '#FF3B30', kontur: '#FFFFFF' },
-  { id: 'spielplatz', name: 'Spielplätze',          kurz: 'Spielplatz',         form: 'raute',    farbe: '#FFCC00', kontur: '#FFFFFF' },
-  { id: 'kultur',     name: 'Cafés & Kultur',       kurz: 'Café / Kultur',      form: 'sechseck', farbe: '#A2845E', kontur: '#FFFFFF' },
-  { id: 'gruen',      name: 'Parks',                kurz: 'Park',               form: 'flaeche',  farbe: '#34C759', kontur: '#FFFFFF' }
+  { id: 'oepnv',      name: 'ÖPNV-Haltepunkte',     kurz: 'ÖPNV-Haltepunkt',    name_en: 'Public transport',      kurz_en: 'Public transport stop',    form: 'kreis',    farbe: '#30B0C7', kontur: '#FFFFFF' },
+  { id: 'versorgung', name: 'Supermärkte & Bäcker', kurz: 'Supermarkt / Bäcker', name_en: 'Supermarkets & bakeries', kurz_en: 'Supermarket / bakery', form: 'quadrat',  farbe: '#FF9500', kontur: '#FFFFFF' },
+  { id: 'bildung',    name: 'Kitas & Schulen',      kurz: 'Kita / Schule',      name_en: 'Nurseries & schools',   kurz_en: 'Nursery / school',      form: 'dreieck',  farbe: '#AF52DE', kontur: '#FFFFFF' },
+  { id: 'gesundheit', name: 'Ärzte & Apotheken',    kurz: 'Arzt / Apotheke',    name_en: 'Doctors & pharmacies',  kurz_en: 'Doctor / pharmacy',    form: 'plus',     farbe: '#FF3B30', kontur: '#FFFFFF' },
+  { id: 'spielplatz', name: 'Spielplätze',          kurz: 'Spielplatz',         name_en: 'Playgrounds',           kurz_en: 'Playground',         form: 'raute',    farbe: '#FFCC00', kontur: '#FFFFFF' },
+  { id: 'kultur',     name: 'Cafés & Kultur',       kurz: 'Café / Kultur',      name_en: 'Cafés & culture',       kurz_en: 'Café / culture',      form: 'sechseck', farbe: '#A2845E', kontur: '#FFFFFF' },
+  { id: 'gruen',      name: 'Parks',                kurz: 'Park',               name_en: 'Parks',                 kurz_en: 'Park',               form: 'flaeche',  farbe: '#34C759', kontur: '#FFFFFF' }
 ];
 
 // Zielgruppen-Profile: Welche Kategorien zählen für wen?
 //   Jede Kategorie im Profil bringt bis zu 2 Punkte (wie bisher).
 const PROFILE = [
   { id: 'alltag',      name: 'Alltag',      text: 'Grundversorgung für alle',
+    name_en: 'Everyday', text_en: 'basic amenities for everyone',
     kategorien: ['oepnv', 'versorgung', 'bildung', 'gruen'] },
   { id: 'familie',     name: 'Familie',     text: 'mit Kindern: Kita, Schule, Spielplatz',
+    name_en: 'Families', text_en: 'with children: nursery, school, playground',
     kategorien: ['oepnv', 'versorgung', 'bildung', 'spielplatz', 'gruen'] },
   { id: 'senioren',    name: 'Senioren',    text: 'Ärzte, Apotheken und Treffpunkte nah',
+    name_en: 'Seniors', text_en: 'doctors, pharmacies and meeting places nearby',
     kategorien: ['oepnv', 'versorgung', 'gesundheit', 'kultur', 'gruen'] },
   { id: 'studierende', name: 'Studierende', text: 'Mobilität, Einkauf, Cafés und Kultur',
+    name_en: 'Students', text_en: 'transport, shopping, cafés and culture',
     kategorien: ['oepnv', 'versorgung', 'kultur', 'gruen'] }
 ];
 
@@ -102,11 +119,21 @@ map.attributionControl.setPrefix(false);
 //    Klasse "basemap" grau und hell – so treten die Kreise klar hervor.
 //    Die Namensnennung ist Pflicht (OSM-Lizenz).
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap-Mitwirkende</a>',
   className: 'basemap',
   crossOrigin: true,   // erlaubt, die Kacheln später ins PNG zu übernehmen
   maxZoom: 19
 }).addTo(map);
+
+// Namensnennung (Pflicht) – in der gewählten Sprache; wird beim
+// Umschalten der Sprache ausgetauscht (siehe wendeSpracheAn)
+let osmHinweis = '';
+function setzeOsmHinweis() {
+  if (osmHinweis) map.attributionControl.removeAttribution(osmHinweis);
+  osmHinweis = '© <a href="https://www.openstreetmap.org/copyright">' +
+    tx('OpenStreetMap-Mitwirkende', 'OpenStreetMap contributors') + '</a>';
+  map.attributionControl.addAttribution(osmHinweis);
+}
+setzeOsmHinweis();
 
 // Maßstabsleiste (nur Meter), unten rechts über der Namensnennung
 L.control.scale({ imperial: false, position: 'bottomright', maxWidth: 150 }).addTo(map);
@@ -357,8 +384,9 @@ function zaehleInfrastruktur(punkt) {
   if (!window.OSM_DATEN || !imDatengebiet(punkt)) {
     zeigeBewertung(null);
     status.textContent = window.OSM_DATEN
-      ? 'Außerhalb des Datengebiets – Infrastruktur nur für Oldenburg und Umgebung verfügbar.'
-      : 'Infrastruktur-Daten konnten nicht geladen werden.';
+      ? tx('Außerhalb des Datengebiets – Infrastruktur nur für Oldenburg und Umgebung verfügbar.',
+           'Outside the data area – amenities are only available for Oldenburg and surroundings.')
+      : tx('Infrastruktur-Daten konnten nicht geladen werden.', 'Amenity data could not be loaded.');
     return;
   }
 
@@ -366,7 +394,8 @@ function zaehleInfrastruktur(punkt) {
   ergebnis.gefunden.forEach(function (fund) { zeichneOrt(fund.ort); });
 
   // Ergebnisse ins Panel schreiben (Anzahlen stehen in der Aufschlüsselung)
-  status.textContent = 'OSM-Stand ' + OSM_DATEN.datenstand + '. Parks zählen ab ihrem Rand.';
+  status.textContent = tx('OSM-Stand ', 'OSM data as of ') + OSM_DATEN.datenstand +
+    tx('. Parks zählen ab ihrem Rand.', '. Parks count from their edge.');
 
   letzteOrte = ergebnis.gefunden;
   letzteBewertung = berechneBewertung(ergebnis.zaehler);
@@ -429,10 +458,10 @@ function bewerteOrt(punkt) {
 let letzteBewertung = null;
 
 const BEWERTUNGS_STUFEN = [
-  { ab: 0.875, text: 'sehr gut versorgt' },   // 7–8 Punkte
-  { ab: 0.625, text: 'gut versorgt' },        // 5–6 Punkte
-  { ab: 0.375, text: 'teilweise versorgt' },  // 3–4 Punkte
-  { ab: 0,     text: 'schwach versorgt' }     // 0–2 Punkte
+  { ab: 0.875, text: 'sehr gut versorgt',  text_en: 'very well served' },   // 7–8 Punkte
+  { ab: 0.625, text: 'gut versorgt',       text_en: 'well served' },        // 5–6 Punkte
+  { ab: 0.375, text: 'teilweise versorgt', text_en: 'partly served' },      // 3–4 Punkte
+  { ab: 0,     text: 'schwach versorgt',   text_en: 'poorly served' }       // 0–2 Punkte
 ];
 
 function berechneBewertung(zaehler) {
@@ -443,8 +472,8 @@ function berechneBewertung(zaehler) {
     const z = zaehler[kat.id];
     let p = 0;
     if (z.innen > 0) p = 2;
-    else if (z.aussen > 0) { p = 1; fehlend.push(kat.name + ' (erst im äußeren Kreis)'); }
-    else fehlend.push(kat.name + ' (fehlt ganz)');
+    else if (z.aussen > 0) { p = 1; fehlend.push(lok(kat, 'name') + tx(' (erst im äußeren Kreis)', ' (only in the outer circle)')); }
+    else fehlend.push(lok(kat, 'name') + tx(' (fehlt ganz)', ' (missing)'));
     punkte += p;
     details.push({ kat: kat, punkte: p, innen: z.innen, aussen: z.aussen, naechstes: z.naechstes });
   });
@@ -454,7 +483,7 @@ function berechneBewertung(zaehler) {
     punkte: punkte,
     maximum: maximum,
     prozent: Math.round(anteil * 100),
-    stufe: BEWERTUNGS_STUFEN.find(function (s) { return anteil >= s.ab; }).text,
+    stufe: lok(BEWERTUNGS_STUFEN.find(function (s) { return anteil >= s.ab; }), 'text'),
     fehlend: fehlend,
     details: details
   };
@@ -474,7 +503,7 @@ function zeigeBewertung(b) {
   if (!b) {
     cancelAnimationFrame(zahlAnimation);
     zahl.textContent = '–';
-    stufe.textContent = 'keine Daten für diesen Ort';
+    stufe.textContent = tx('keine Daten für diesen Ort', 'no data for this place');
     knopf.disabled = true;
     klappeAufschluesselung(false);
     return;
@@ -521,7 +550,7 @@ function zeichneRing(b) {
 //     Kategorie als Symbol sitzt. Die zwei Zonen entsprechen den Kreisen.
 function zeichneZeitstrahl(b) {
   const feld = document.getElementById('zeitstrahl');
-  if (!b) { feld.innerHTML = '<p class="anmerkung">Keine Daten für diesen Ort.</p>'; return; }
+  if (!b) { feld.innerHTML = '<p class="anmerkung">' + tx('Keine Daten für diesen Ort.', 'No data for this place.') + '</p>'; return; }
 
   const minuten = function (meter) { return meter * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN; };
   const tInnen = minuten(einstellungen.radiusInnen);
@@ -536,10 +565,10 @@ function zeichneZeitstrahl(b) {
   b.details.forEach(function (d) {
     const n = d.naechstes;
     const t = n ? minuten(n.entfernung) : null;
-    const text = t === null ? 'über 3 km' : (t > MAX ? '› ' + MAX + ' Min.' : Math.max(1, Math.round(t)) + ' Min.');
+    const text = t === null ? tx('über 3 km', 'over 3 km') : (t > MAX ? '› ' + MAX + ' ' + minWort() : Math.max(1, Math.round(t)) + ' ' + minWort());
     const x = t === null ? 100 : pos(t);
     html += '<button type="button" class="zs-bahn" data-kat="' + d.kat.id + '"' + (n ? '' : ' disabled') +
-      ' title="' + d.kat.name + (n && n.name ? ': ' + n.name : '') + '">' +
+      ' title="' + lok(d.kat, 'name') + (n && n.name ? ': ' + n.name : '') + '">' +
       '<span class="zs-linie"></span>' +
       '<span class="zs-marke' + (x > 72 ? ' links' : '') + '" data-x="' + x + '" style="left:0">' +
         symbolSvg(d.kat.id) + '<span class="zs-zeit">' + text + '</span>' +
@@ -550,7 +579,7 @@ function zeichneZeitstrahl(b) {
   html += '</div><div class="zs-achse">' +
     '<span style="left:0">0</span>' +
     '<span style="left:' + pos(tInnen) + '%">' + minText(tInnen) + '</span>' +
-    '<span style="left:' + pos(tAussen) + '%">' + minText(tAussen) + ' Min.</span></div>';
+    '<span style="left:' + pos(tAussen) + '%">' + minText(tAussen) + ' ' + minWort() + '</span></div>';
   feld.innerHTML = html;
 
   // Klick auf eine Bahn: Weg zum Ziel auf der Karte (wie in der Aufschlüsselung)
@@ -578,7 +607,7 @@ function bogen(m, r, a1, a2) {
 }
 
 // --- Aufschlüsselung: je Kategorie Punkte + nächstes Ziel mit Gehzeit
-const PUNKTE_TEXT = ['0 Punkte', '1 Punkt', '2 Punkte'];
+function punkteText(p) { return p + ' ' + (p === 1 ? tx('Punkt', 'point') : tx('Punkte', 'points')); }
 
 function fuelleAufschluesselung(b) {
   const liste = document.getElementById('bewertung-liste');
@@ -600,26 +629,176 @@ function fuelleAufschluesselung(b) {
     let unter;
     const n = d.naechstes;
     if (!n) {
-      unter = 'kein Ziel in über 3 km Umkreis';
+      unter = tx('kein Ziel in über 3 km Umkreis', 'nothing within 3 km');
       knopf.disabled = true;
     } else {
       const min = Math.max(1, Math.round(n.entfernung * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN));
-      const name = n.name || 'ohne Namen';
-      unter = (n.entfernung === 0 ? 'Standort liegt im Park' : 'Nächstes: ' + name) + ' · ' +
-              '<span class="mono">' + deutsch(Math.round(n.entfernung), 0) + ' m · ' + min + ' Min.</span>';
+      const name = n.name || tx('ohne Namen', 'unnamed');
+      unter = (n.entfernung === 0 ? tx('Standort liegt im Park', 'Site lies within the park') : tx('Nächstes: ', 'Nearest: ') + name) + ' · ' +
+              '<span class="mono">' + deutsch(Math.round(n.entfernung), 0) + ' m · ' + min + ' ' + minWort() + '</span>';
     }
 
     knopf.innerHTML =
       '<span class="auf-kopf">' + symbolSvg(d.kat.id) +
-        '<span class="auf-name">' + d.kat.name + '</span>' +
-        '<span class="auf-anzahl mono" title="Anzahl im inneren / äußeren Kreis">' + d.innen + ' · ' + d.aussen + '</span>' +
-        '<span class="auf-punkte" title="' + PUNKTE_TEXT[d.punkte] + '">' + felder + '</span>' +
+        '<span class="auf-name">' + lok(d.kat, 'name') + '</span>' +
+        '<span class="auf-anzahl mono" title="' + tx('Anzahl im inneren / äußeren Kreis', 'Number in the inner / outer circle') + '">' + d.innen + ' · ' + d.aussen + '</span>' +
+        '<span class="auf-punkte" title="' + punkteText(d.punkte) + '">' + felder + '</span>' +
       '</span>' +
       '<span class="auf-unter">' + unter + '</span>';
-    knopf.addEventListener('click', function () { zeigeWeg(d, knopf); });
+    // Klick: Liste aller Orte dieser Kategorie aufklappen + Weg zum nächsten zeigen
+    const details = document.createElement('div');
+    details.className = 'auf-details';
+    details.innerHTML = '<div class="auf-details-innen"></div>';
+    knopf.setAttribute('aria-expanded', 'false');
+    knopf.addEventListener('click', function () { klappeKategorie(d, zeile, knopf); });
     zeile.appendChild(knopf);
+    zeile.appendChild(details);
     liste.appendChild(zeile);
   });
+}
+
+// ------------------------------------------------------------
+// Orte einer Kategorie auflisten (Klick auf eine Zeile der Aufschlüsselung)
+// ------------------------------------------------------------
+// Deutsche Namen für die Art eines Ortes: [Einzahl, Mehrzahl]
+const TYP_NAMEN = {
+  supermarket: ['Supermarkt', 'Supermärkte'], bakery: ['Bäckerei', 'Bäckereien'],
+  kindergarten: ['Kita', 'Kitas'], school: ['Schule', 'Schulen'],
+  doctors: ['Arztpraxis', 'Arztpraxen'], pharmacy: ['Apotheke', 'Apotheken'],
+  dentist: ['Zahnarzt', 'Zahnärzte'], clinic: ['Klinik', 'Kliniken'], hospital: ['Krankenhaus', 'Krankenhäuser'],
+  cafe: ['Café', 'Cafés'], library: ['Bibliothek', 'Bibliotheken'], theatre: ['Theater', 'Theater'],
+  cinema: ['Kino', 'Kinos'], arts_centre: ['Kulturzentrum', 'Kulturzentren'],
+  community_centre: ['Gemeinschaftshaus', 'Gemeinschaftshäuser'],
+  playground: ['Spielplatz', 'Spielplätze'], park: ['Park', 'Parks'],
+  bus_stop: ['Bushaltestelle', 'Bushaltestellen'], station: ['Bahnhof', 'Bahnhöfe'],
+  halt: ['Bahn-Haltepunkt', 'Bahn-Haltepunkte'], tram_stop: ['Straßenbahn-Halt', 'Straßenbahn-Halte']
+};
+// … und auf Englisch
+const TYP_NAMEN_EN = {
+  supermarket: ['supermarket', 'supermarkets'], bakery: ['bakery', 'bakeries'],
+  kindergarten: ['nursery', 'nurseries'], school: ['school', 'schools'],
+  doctors: ['doctor', 'doctors'], pharmacy: ['pharmacy', 'pharmacies'],
+  dentist: ['dentist', 'dentists'], clinic: ['clinic', 'clinics'], hospital: ['hospital', 'hospitals'],
+  cafe: ['café', 'cafés'], library: ['library', 'libraries'], theatre: ['theatre', 'theatres'],
+  cinema: ['cinema', 'cinemas'], arts_centre: ['arts centre', 'arts centres'],
+  community_centre: ['community centre', 'community centres'],
+  playground: ['playground', 'playgrounds'], park: ['park', 'parks'],
+  bus_stop: ['bus stop', 'bus stops'], station: ['railway station', 'railway stations'],
+  halt: ['railway halt', 'railway halts'], tram_stop: ['tram stop', 'tram stops']
+};
+function typName(ort, mehrzahl) {
+  const t = (einstellungen.sprache === 'en' ? TYP_NAMEN_EN : TYP_NAMEN)[ort.properties.typ];
+  if (t) return t[mehrzahl ? 1 : 0];
+  if (ort.properties.kat === 'oepnv') return mehrzahl ? tx('Haltestellen', 'stops') : tx('Haltestelle', 'stop');
+  return lok(kategorie(ort.properties.kat), 'kurz');
+}
+
+let offeneKategorie = null;
+
+function klappeKategorie(d, zeile, knopf) {
+  const warOffen = zeile.classList.contains('auf-offen');
+  // andere offene Zeile schließen (immer nur eine Liste offen)
+  document.querySelectorAll('#bewertung-liste li.auf-offen').forEach(function (li) {
+    li.classList.remove('auf-offen');
+    li.querySelector('.auf-zeile').setAttribute('aria-expanded', 'false');
+  });
+  entferneWeg();
+  offeneKategorie = null;
+  if (warOffen) return;
+
+  zeile.querySelector('.auf-details-innen').innerHTML = ortsListe(d);
+  zeile.classList.add('auf-offen');
+  knopf.setAttribute('aria-expanded', 'true');
+  offeneKategorie = d.kat.id;
+  zeigeWeg(d, knopf);   // Weg zum nächsten Ziel
+
+  // Klick auf einen Ort: Weg genau dorthin zeigen
+  zeile.querySelectorAll('.ort-zeile').forEach(function (ortKnopf) {
+    ortKnopf.addEventListener('click', function () {
+      const o = aktuelleOrte[Number(ortKnopf.dataset.i)];
+      zeigeWegZu('ort-' + ortKnopf.dataset.i, o.lage, d.kat.farbe, o.name, o.entfernung, ortKnopf);
+    });
+  });
+  const mehr = zeile.querySelector('.ort-mehr');
+  if (mehr) mehr.addEventListener('click', function () {
+    zeile.querySelectorAll('.ort-zeile[hidden]').forEach(function (z) { z.hidden = false; });
+    mehr.remove();
+  });
+  // Liste sichtbar machen, falls sie unten aus dem Panel ragt
+  setTimeout(function () { zeile.scrollIntoView({ block: 'nearest', behavior: WENIG_BEWEGUNG ? 'auto' : 'smooth' }); }, 350);
+}
+
+// HTML der Ortsliste: Zusammenfassung nach Art + eine Zeile pro Ort
+let aktuelleOrte = [];
+function ortsListe(d) {
+  const funde = (letzteOrte || []).filter(function (f) { return f.ort.properties.kat === d.kat.id; });
+
+  // Orte vorbereiten; Haltestellen mit gleichem Namen zusammenfassen
+  // (meist zwei Haltepunkte – einer je Fahrtrichtung)
+  const gruppen = {};
+  const orte = [];
+  funde.forEach(function (f) {
+    const p = f.ort.properties;
+    const lage = naechsteStelle(f.ort, letzterPunkt).lage;
+    const linien = p.linien ? p.linien.split(/[;,]\s*/) : [];
+    if (d.kat.id === 'oepnv' && p.name) {
+      const g = gruppen[p.name];
+      if (g) {
+        g.anzahl++;
+        linien.forEach(function (l) { if (g.linien.indexOf(l) < 0) g.linien.push(l); });
+        if (f.entfernung < g.entfernung) { g.entfernung = f.entfernung; g.lage = lage; }
+        return;
+      }
+      gruppen[p.name] = { name: p.name, typ: typName(f.ort), entfernung: f.entfernung, lage: lage, anzahl: 1, linien: linien.slice() };
+      orte.push(gruppen[p.name]);
+      return;
+    }
+    orte.push({ name: p.name || tx('ohne Namen', 'unnamed'), typ: typName(f.ort), entfernung: f.entfernung, lage: lage, anzahl: 1, linien: linien });
+  });
+  orte.sort(function (a, b) { return a.entfernung - b.entfernung; });
+  aktuelleOrte = orte;
+
+  if (!orte.length) {
+    const n = d.naechstes;
+    return '<p class="ort-leer">' + tx('Keine im Umkreis von ', 'None within ') + deutsch(einstellungen.radiusAussen, 0) + ' m.' +
+      (n ? tx(' Nächstes Ziel: ', ' Nearest: ') + (n.name || tx('ohne Namen', 'unnamed')) + tx(' in ', ' at ') + deutsch(Math.round(n.entfernung), 0) + ' m.' : '') + '</p>';
+  }
+
+  // Zusammenfassung nach Art, z. B. "3 Bäckereien · 1 Supermarkt"
+  const arten = {};
+  funde.forEach(function (f) {
+    const schluessel = f.ort.properties.typ || 'sonst';
+    arten[schluessel] = arten[schluessel] || { anzahl: 0, ort: f.ort };
+    arten[schluessel].anzahl++;
+  });
+  let zusammen = Object.keys(arten).map(function (k) {
+    const a = arten[k];
+    return a.anzahl + ' ' + typName(a.ort, a.anzahl !== 1);
+  }).join(' · ');
+  if (d.kat.id === 'oepnv') {
+    zusammen = orte.length + ' ' + (orte.length === 1 ? tx('Haltestelle', 'stop') : tx('Haltestellen', 'stops')) +
+      ' (' + funde.length + tx(' Haltepunkte)', ' platforms)');
+  }
+
+  let html = '<p class="ort-summe">' + zusammen + tx(' im Umkreis', ' nearby') + '</p>';
+  orte.forEach(function (o, i) {
+    const min = Math.max(1, Math.round(o.entfernung * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN));
+    const innen = o.entfernung <= einstellungen.radiusInnen;
+    let info = o.typ;
+    if (o.anzahl > 1) info += ' · ' + o.anzahl + tx(' Haltepunkte', ' platforms');
+    if (o.linien.length) info += ' · ' + (o.linien.length > 1 ? tx('Linien ', 'lines ') : tx('Linie ', 'line ')) + o.linien.join(', ');
+    html += '<button type="button" class="ort-zeile' + (innen ? ' innen' : '') + '" data-i="' + i + '"' + (i >= 6 ? ' hidden' : '') + '>' +
+      '<span class="ort-lage" title="' + (innen ? tx('im inneren Kreis', 'in the inner circle') : tx('im äußeren Kreis', 'in the outer circle')) + '"></span>' +
+      '<span class="ort-text"><span class="ort-name">' + o.name.replace(/</g, '&lt;') + '</span>' +
+      '<span class="ort-info">' + info + '</span></span>' +
+      '<span class="ort-weg mono">' + deutsch(Math.round(o.entfernung), 0) + ' m<br>' + min + ' ' + minWort() + '</span>' +
+      '</button>';
+  });
+  if (orte.length > 6) html += '<button type="button" class="ort-mehr">+ ' + (orte.length - 6) + tx(' weitere anzeigen', ' more') + '</button>';
+  if (d.kat.id === 'oepnv') {
+    html += '<p class="ort-hinweis">' + tx('Buslinien nur, wo sie in OpenStreetMap eingetragen sind.', 'Bus lines only where they are recorded in OpenStreetMap.') + '</p>';
+  }
+  return html;
 }
 
 // Auf- und zuklappen (offen = true/false)
@@ -642,19 +821,24 @@ let wegKat = null;
 function entferneWeg() {
   if (wegEbene) { analyse.removeLayer(wegEbene); wegEbene = null; }
   wegKat = null;
-  document.querySelectorAll('.auf-zeile.aktiv, .zs-bahn.aktiv').forEach(function (z) { z.classList.remove('aktiv'); });
+  document.querySelectorAll('.auf-zeile.aktiv, .zs-bahn.aktiv, .ort-zeile.aktiv').forEach(function (z) { z.classList.remove('aktiv'); });
 }
 
 function zeigeWeg(d, knopf) {
-  // Zweiter Klick auf dieselbe Zeile: Linie wieder weg
-  if (wegKat === d.kat.id) { entferneWeg(); return; }
-  entferneWeg();
-  if (!d.naechstes || !letzterPunkt) return;
+  if (!d.naechstes) return;
+  zeigeWegZu(d.kat.id, d.naechstes.lage, d.kat.farbe, d.naechstes.name || lok(d.kat, 'name'), d.naechstes.entfernung, knopf);
+}
 
-  wegKat = d.kat.id;
+// Gestrichelte Linie vom Standort zu einem Ziel + Schild mit Name und Gehzeit
+//   schluessel: damit ein zweiter Klick auf dasselbe Ziel die Linie entfernt
+function zeigeWegZu(schluessel, ziel, farbe, name, entfernung, knopf) {
+  if (wegKat === schluessel) { entferneWeg(); return; }
+  entferneWeg();
+  if (!ziel || !letzterPunkt) return;
+
+  wegKat = schluessel;
   knopf.classList.add('aktiv');
-  const ziel = d.naechstes.lage;
-  const min = Math.max(1, Math.round(d.naechstes.entfernung * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN));
+  const min = Math.max(1, Math.round(entfernung * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN));
 
   wegEbene = L.layerGroup([
     // Linie Standort → Ziel
@@ -664,10 +848,10 @@ function zeigeWeg(d, knopf) {
     }),
     // Ring um das Ziel in der Kategorie-Farbe
     L.circleMarker(ziel, {
-      radius: 11, color: d.kat.farbe, weight: 2.5, fillOpacity: 0.15,
-      fillColor: d.kat.farbe, interactive: false, className: 'weg-ziel'
+      radius: 11, color: farbe, weight: 2.5, fillOpacity: 0.15,
+      fillColor: farbe, interactive: false, className: 'weg-ziel'
     }).bindTooltip(
-      (d.naechstes.name || d.kat.name) + ' · ' + deutsch(Math.round(d.naechstes.entfernung), 0) + ' m · ca. ' + min + ' Min.',
+      name + ' · ' + deutsch(Math.round(entfernung), 0) + ' m · ' + tx('ca. ', 'approx. ') + min + ' ' + minWort(),
       { permanent: true, direction: 'top', offset: [0, -10], className: 'weg-schild' }
     )
   ]).addTo(analyse);
@@ -754,7 +938,7 @@ function ersterPunkt(geo) {
 function zeichneOrt(ort) {
   const kat = ort.properties.kat;
   const name = document.createElement('span');
-  name.textContent = ort.properties.name || kategorie(kat).kurz;
+  name.textContent = ort.properties.name || lok(kategorie(kat), 'kurz');
 
   if (kat === 'gruen') {
     // Parks als salbeigrüne Fläche mit feiner Kontur
@@ -812,7 +996,7 @@ suchFormular.addEventListener('submit', async function (event) {
   });
 
   suchKnopf.disabled = true;
-  suchStatus.textContent = 'Suche läuft …';
+  suchStatus.textContent = tx('Suche läuft …', 'Searching …');
 
   try {
     const antwort = await fetch('https://nominatim.openstreetmap.org/search?' + parameter);
@@ -820,7 +1004,7 @@ suchFormular.addEventListener('submit', async function (event) {
     const treffer = await antwort.json();
 
     if (treffer.length === 0) {
-      suchStatus.textContent = 'Keine Adresse gefunden. Tipp: Ort mit angeben.';
+      suchStatus.textContent = tx('Keine Adresse gefunden. Tipp: Ort mit angeben.', 'No address found. Tip: add the town.');
       return;
     }
 
@@ -831,7 +1015,7 @@ suchFormular.addEventListener('submit', async function (event) {
     letzteAdresse = ort.display_name;
     analysiereStandort(L.latLng(Number(ort.lat), Number(ort.lon)));
   } catch (fehler) {
-    suchStatus.textContent = 'Suche gerade nicht möglich. Bitte später erneut versuchen.';
+    suchStatus.textContent = tx('Suche gerade nicht möglich. Bitte später erneut versuchen.', 'Search is not available right now. Please try again later.');
   } finally {
     // Knopf erst nach 1 Sekunde wieder freigeben (Nominatim-Regel)
     setTimeout(function () { suchKnopf.disabled = false; }, 1000);
@@ -848,8 +1032,9 @@ function kreisflaeche(radiusMeter) {
 }
 
 // Zahl im deutschen Format, z. B. 50,3 statt 50.3
+// (Name aus der Anfangszeit: formatiert Zahlen – auf Englisch mit Punkt statt Komma)
 function deutsch(zahl, nachkommastellen) {
-  return zahl.toLocaleString('de-DE', {
+  return zahl.toLocaleString(einstellungen.sprache === 'en' ? 'en-GB' : 'de-DE', {
     minimumFractionDigits: nachkommastellen,
     maximumFractionDigits: nachkommastellen
   });
@@ -859,7 +1044,7 @@ function deutsch(zahl, nachkommastellen) {
 function zeigeKennzahlen(punkt) {
   // 5 Nachkommastellen ≈ 1 m Genauigkeit – reicht für ein Grundstück
   document.getElementById('wert-koordinaten').textContent =
-    deutsch(punkt.lat, 5) + '° N · ' + deutsch(punkt.lng, 5) + '° O';
+    deutsch(punkt.lat, 5) + '° N · ' + deutsch(punkt.lng, 5) + tx('° O', '° E');
 
   zeigeEinzugsbereiche();
 
@@ -881,13 +1066,13 @@ function zeigeEinzugsbereiche() {
     const hektar = kreisflaeche(radius) / 10000;
     const gehzeit = radius * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN;
     return '<span class="zs-kreis zs-kreis-' + (i ? 'aussen' : 'innen') + '"></span>' +
-      deutsch(radius, 0) + ' m ≈ ' + deutsch(gehzeit, 1) + ' Min. · ' + deutsch(hektar, 1) + ' ha';
+      deutsch(radius, 0) + ' m ≈ ' + deutsch(gehzeit, 1) + ' ' + minWort() + ' · ' + deutsch(hektar, 1) + ' ha';
   });
   document.getElementById('vergleich-zeilen').innerHTML = teile.join('<br>');
 
   document.getElementById('vergleich-annahme').textContent =
-    'Annahmen: Umwegfaktor ' + deutsch(UMWEGFAKTOR, 1) +
-    ', Gehtempo ' + deutsch(GEHTEMPO_KMH, 1) + ' km/h.';
+    tx('Annahmen: Umwegfaktor ', 'Assumptions: detour factor ') + deutsch(UMWEGFAKTOR, 1) +
+    tx(', Gehtempo ', ', walking speed ') + deutsch(GEHTEMPO_KMH, 1) + ' km/h.';
 }
 
 // ------------------------------------------------------------
@@ -956,7 +1141,7 @@ async function kartenBild(format, pixelRatio) {
 
 exportKnopf.addEventListener('click', async function () {
   exportKnopf.disabled = true;
-  exportStatus.textContent = 'Bild wird erstellt …';
+  exportStatus.textContent = tx('Bild wird erstellt …', 'Creating image …');
 
   try {
     const bild = await kartenBild('png', 2);
@@ -965,12 +1150,12 @@ exportKnopf.addEventListener('click', async function () {
     const datum = new Date().toISOString().slice(0, 10);
     const link = document.createElement('a');
     link.href = bild;
-    link.download = 'stadt-scanner-' + datum + '.png';
+    link.download = 'stadt-in-15-' + datum + '.png';
     link.click();
 
-    exportStatus.textContent = 'Gespeichert (im Download-Ordner).';
+    exportStatus.textContent = tx('Gespeichert (im Download-Ordner).', 'Saved (in your downloads folder).');
   } catch (fehler) {
-    exportStatus.textContent = 'Export fehlgeschlagen. Bitte warten, bis die Karte ganz geladen ist, und erneut versuchen.';
+    exportStatus.textContent = tx('Export fehlgeschlagen. Bitte warten, bis die Karte ganz geladen ist, und erneut versuchen.', 'Export failed. Please wait until the map has fully loaded and try again.');
   } finally {
     exportKnopf.disabled = false;
   }
@@ -989,7 +1174,7 @@ pdfKnopf.addEventListener('click', async function () {
   }
 
   pdfKnopf.disabled = true;
-  exportStatus.textContent = 'Planblatt wird erstellt …';
+  exportStatus.textContent = tx('Planblatt wird erstellt …', 'Creating plan sheet …');
 
   try {
     // 1) Kartenbild in dreifacher Auflösung (scharf im A3-Druck)
@@ -1021,14 +1206,13 @@ pdfKnopf.addEventListener('click', async function () {
     let y = RAND + 3;
 
     // Kleine Überschrift + Titel
-    grauerText(pdf, 'STANDORTANALYSE', x, y);
+    grauerText(pdf, tx('STANDORTANALYSE OLDENBURG', 'SITE ANALYSIS · OLDENBURG'), x, y);
     y += 10;
     pdf.setFont('helvetica', 'bold');
-    pdf.setFontSize(22);
+    pdf.setFontSize(26);
     pdf.setTextColor(29, 29, 31);
-    pdf.text('15-Minuten-', x, y);
-    pdf.text('Stadt-Scanner', x, y + 8.5);
-    y += 15;
+    pdf.text('Stadt in 15', x, y + 1);
+    y += 8;
 
     // Orange Akzentlinie
     pdf.setDrawColor.apply(pdf, hexZuRgb(einstellungen.farbe));   // Akzentfarbe
@@ -1037,7 +1221,7 @@ pdfKnopf.addEventListener('click', async function () {
     y += 12;
 
     // Abschnitt: Standort
-    y = abschnitt(pdf, 'Standort', x, xr, y);
+    y = abschnitt(pdf, tx('Standort', 'Site'), x, xr, y);
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(10);
     pdf.setTextColor(29, 29, 31);
@@ -1047,13 +1231,13 @@ pdfKnopf.addEventListener('click', async function () {
       y += zeilen.length * 4.6 + 2;
     }
     pdf.setFont(PDF_MONO, 'normal');
-    pdf.text(deutsch(letzterPunkt.lat, 5) + '° N   ' + deutsch(letzterPunkt.lng, 5) + '° O', x, y);
+    pdf.text(deutsch(letzterPunkt.lat, 5) + '° N   ' + deutsch(letzterPunkt.lng, 5) + tx('° O', '° E'), x, y);
     y += 12;
 
     // Abschnitt: 15-Minuten-Bewertung (große Zahl in Akzentfarbe)
     if (letzteBewertung) {
       const b = letzteBewertung;
-      y = abschnitt(pdf, '01   15-Minuten-Bewertung · Profil ' + aktivesProfil().name, x, xr, y);
+      y = abschnitt(pdf, tx('01   15-Minuten-Bewertung · Profil ', '01   15-minute score · profile ') + lok(aktivesProfil(), 'name'), x, xr, y);
       y += 6;
       pdf.setFont(PDF_MONO, 'bold');
       pdf.setFontSize(26);
@@ -1065,42 +1249,42 @@ pdfKnopf.addEventListener('click', async function () {
       pdf.text(b.stufe, x + 34, y - 4.5);
       pdf.setFont('helvetica', 'normal');
       pdf.setFontSize(10);
-      pdf.text(b.prozent + ' % der möglichen Punkte', x + 34, y);
+      pdf.text(b.prozent + tx(' % der möglichen Punkte', ' % of possible points'), x + 34, y);
       y += 8;
       const erklaerung = pdf.splitTextToSize(
-        'Je Kategorie 2 Punkte, wenn mindestens ein Ziel im inneren Kreis (' +
-        deutsch(einstellungen.radiusInnen, 0) + ' m) liegt, 1 Punkt im äußeren Kreis (' +
+        tx('Je Kategorie 2 Punkte, wenn mindestens ein Ziel im inneren Kreis (', '2 points per category if at least one destination lies in the inner circle (') +
+        deutsch(einstellungen.radiusInnen, 0) + tx(' m) liegt, 1 Punkt im äußeren Kreis (', ' m), 1 point in the outer circle (') +
         deutsch(einstellungen.radiusAussen, 0) + ' m).' +
-        (b.fehlend.length ? ' Nicht im inneren Kreis: ' + b.fehlend.join(', ') + '.' : ''), KOPF_B);
+        (b.fehlend.length ? tx(' Nicht im inneren Kreis: ', ' Not in the inner circle: ') + b.fehlend.join(', ') + '.' : ''), KOPF_B);
       grauerText(pdf, '', x, y, false);   // setzt Schrift klein + grau
       pdf.text(erklaerung, x, y);
       y += erklaerung.length * 3.6 + 10;
     }
 
     // Abschnitt: Infrastruktur (Anzahlen aus der Bewertung)
-    y = abschnitt(pdf, '02   Infrastruktur', x, xr, y);
+    y = abschnitt(pdf, tx('02   Infrastruktur', '02   Amenities'), x, xr, y);
     const spalten2 = [x, x + 66, xr];
-    tabellenKopf(pdf, ['Kategorie',
-      'bis ' + deutsch(einstellungen.radiusInnen, 0) + ' m',
-      'bis ' + deutsch(einstellungen.radiusAussen, 0) + ' m'], spalten2, y);
+    tabellenKopf(pdf, [tx('Kategorie', 'Category'),
+      tx('bis ', 'up to ') + deutsch(einstellungen.radiusInnen, 0) + ' m',
+      tx('bis ', 'up to ') + deutsch(einstellungen.radiusAussen, 0) + ' m'], spalten2, y);
     y += 6;
     KATEGORIEN.forEach(function (kat, i) {
       const d = letzteBewertung ? letzteBewertung.details[i] : null;
       pdfSymbol(pdf, kat, x + 1.6, y - 1.2);   // farbiges Symbol vor dem Namen
       tabellenZeile(pdf, [
-        '      ' + kat.name,
+        '      ' + lok(kat, 'name'),
         d ? String(d.innen) : '–',
         d ? String(d.aussen) : '–'
       ], spalten2, x, xr, y, true);
       y += 7;
     });
-    grauerText(pdf, 'Parks zählen, wenn ihr Rand im Radius liegt.', x, y, false);
+    grauerText(pdf, tx('Parks zählen, wenn ihr Rand im Radius liegt.', 'Parks count if their edge lies within the radius.'), x, y, false);
     y += 14;
 
     // Abschnitt: Einzugsbereiche (gleiche Rechnung wie im Panel)
-    y = abschnitt(pdf, '03   Einzugsbereiche', x, xr, y);
+    y = abschnitt(pdf, tx('03   Einzugsbereiche', '03   Catchment areas'), x, xr, y);
     const spalten = [x, x + 38, x + 66, xr];   // Radius | Fläche | Fußweg | Gehzeit
-    tabellenKopf(pdf, ['Radius', 'Fläche', 'Fußweg ca.', 'Gehzeit ca.'], spalten, y);
+    tabellenKopf(pdf, tx(['Radius', 'Fläche', 'Fußweg ca.', 'Gehzeit ca.'], ['Radius', 'Area', 'Walk approx.', 'Time approx.']), spalten, y);
     y += 6;
     [einstellungen.radiusInnen, einstellungen.radiusAussen].forEach(function (radius) {
       const fussweg = radius * UMWEGFAKTOR;
@@ -1108,12 +1292,12 @@ pdfKnopf.addEventListener('click', async function () {
         deutsch(radius, 0) + ' m',
         deutsch(kreisflaeche(radius) / 10000, 1) + ' ha',
         deutsch(fussweg, 0) + ' m',
-        deutsch(fussweg / GEHTEMPO_M_PRO_MIN, 1) + ' Min.'
+        deutsch(fussweg / GEHTEMPO_M_PRO_MIN, 1) + ' ' + minWort()
       ], spalten, x, xr, y);
       y += 7;
     });
-    grauerText(pdf, 'Annahme: Umwegfaktor ' + deutsch(UMWEGFAKTOR, 1) +
-      ', Gehtempo ' + deutsch(GEHTEMPO_KMH, 1) + ' km/h', x, y, false);
+    grauerText(pdf, tx('Annahme: Umwegfaktor ', 'Assumption: detour factor ') + deutsch(UMWEGFAKTOR, 1) +
+      tx(', Gehtempo ', ', walking speed ') + deutsch(GEHTEMPO_KMH, 1) + ' km/h', x, y, false);
     y += 12;
 
     // 5) Fußzeile unten im Plankopf: Datum + Quellen (Lizenzpflicht!)
@@ -1121,16 +1305,16 @@ pdfKnopf.addEventListener('click', async function () {
     pdf.setDrawColor(29, 29, 31);
     pdf.setLineWidth(0.3);
     pdf.line(x, yu - 5, xr, yu - 5);
-    const stand = window.OSM_DATEN ? ', Datenstand ' + OSM_DATEN.datenstand : '';
-    grauerText(pdf, 'Erstellt am ' + new Date().toLocaleDateString('de-DE') + stand, x, yu, false);
-    grauerText(pdf, 'Kartendaten & Kartenkacheln © OpenStreetMap-Mitwirkende', x, yu + 4.5, false);
+    const stand = window.OSM_DATEN ? tx(', Datenstand ', ', data as of ') + OSM_DATEN.datenstand : '';
+    grauerText(pdf, tx('Erstellt am ', 'Created on ') + new Date().toLocaleDateString(tx('de-DE', 'en-GB')) + stand, x, yu, false);
+    grauerText(pdf, tx('Kartendaten & Kartenkacheln © OpenStreetMap-Mitwirkende', 'Map data & tiles © OpenStreetMap contributors'), x, yu + 4.5, false);
     grauerText(pdf, '(ODbL, openstreetmap.org/copyright)', x, yu + 9, false);
 
     // 6) Speichern, z. B. "stadt-scanner-planblatt-2026-11-16.pdf"
-    pdf.save('stadt-scanner-planblatt-' + new Date().toISOString().slice(0, 10) + '.pdf');
-    exportStatus.textContent = 'Planblatt gespeichert (im Download-Ordner).';
+    pdf.save('stadt-in-15-planblatt-' + new Date().toISOString().slice(0, 10) + '.pdf');
+    exportStatus.textContent = tx('Planblatt gespeichert (im Download-Ordner).', 'Plan sheet saved (in your downloads folder).');
   } catch (fehler) {
-    exportStatus.textContent = 'PDF-Export fehlgeschlagen. Bitte warten, bis die Karte ganz geladen ist, und erneut versuchen.';
+    exportStatus.textContent = tx('PDF-Export fehlgeschlagen. Bitte warten, bis die Karte ganz geladen ist, und erneut versuchen.', 'PDF export failed. Please wait until the map has fully loaded and try again.');
   } finally {
     pdfKnopf.disabled = false;
   }
@@ -1277,7 +1461,7 @@ gpkgKnopf.addEventListener('click', async function () {
     return;
   }
   gpkgKnopf.disabled = true;
-  exportStatus.textContent = 'GeoPackage wird erstellt …';
+  exportStatus.textContent = tx('GeoPackage wird erstellt …', 'Creating GeoPackage …');
 
   try {
     // 1) Werkzeuge nachladen (nur beim ersten Mal)
@@ -1304,7 +1488,7 @@ gpkgKnopf.addEventListener('click', async function () {
       punkte_max: letzteBewertung ? letzteBewertung.maximum : null,
       prozent: letzteBewertung ? letzteBewertung.prozent : null,
       bewertung: letzteBewertung ? letzteBewertung.stufe : null,
-      profil: aktivesProfil().name
+      profil: lok(aktivesProfil(), 'name')
     });
 
     // 4) Ebene "einzugsbereiche" – Kreise direkt in Metern berechnet
@@ -1324,7 +1508,7 @@ gpkgKnopf.addEventListener('click', async function () {
 
     // 5) Ebenen "infrastruktur" (Punkte) und "parks" (Flächen)
     const spalten = 'kat TEXT, typ TEXT, name TEXT, entf_m INTEGER, im_innen INTEGER, osm_id TEXT, quelle TEXT';
-    neueEbene(db, 'infrastruktur', 'POINT', 'Ziele im Umkreis (Profil ' + aktivesProfil().name + ')', spalten);
+    neueEbene(db, 'infrastruktur', 'POINT', tx('Ziele im Umkreis (Profil ', 'Destinations nearby (profile ') + lok(aktivesProfil(), 'name') + ')', spalten);
     neueEbene(db, 'parks', 'MULTIPOLYGON', 'Parks (OpenStreetMap)', spalten);
     const quelle = OSM_QUELLE + (window.OSM_DATEN ? ', Stand ' + OSM_DATEN.datenstand : '');
 
@@ -1333,7 +1517,7 @@ gpkgKnopf.addEventListener('click', async function () {
       const g = fund.ort.geometry;
       const werte = {
         kat: p.kat,
-        typ: kategorie(p.kat).name,
+        typ: lok(kategorie(p.kat), 'name'),
         name: p.name || '',
         entf_m: Math.round(fund.entfernung),
         im_innen: fund.entfernung <= einstellungen.radiusInnen ? 1 : 0,
@@ -1358,15 +1542,15 @@ gpkgKnopf.addEventListener('click', async function () {
     db.close();
     const link = document.createElement('a');
     link.href = URL.createObjectURL(datei);
-    link.download = 'stadt-scanner-' + new Date().toISOString().slice(0, 10) + '.gpkg';
+    link.download = 'stadt-in-15-' + new Date().toISOString().slice(0, 10) + '.gpkg';
     link.click();
     setTimeout(function () { URL.revokeObjectURL(link.href); }, 10000);
 
     exportStatus.textContent = letzteOrte
       ? 'GeoPackage gespeichert (4 Ebenen, ' + letzteOrte.length + ' Orte, EPSG:25832).'
-      : 'GeoPackage gespeichert – ohne Infrastruktur (außerhalb des Datengebiets).';
+      : tx('GeoPackage gespeichert – ohne Infrastruktur (außerhalb des Datengebiets).', 'GeoPackage saved – without amenities (outside the data area).');
   } catch (fehler) {
-    exportStatus.textContent = 'GeoPackage-Export fehlgeschlagen. Bitte Internetverbindung prüfen und erneut versuchen.';
+    exportStatus.textContent = tx('GeoPackage-Export fehlgeschlagen. Bitte Internetverbindung prüfen und erneut versuchen.', 'GeoPackage export failed. Please check your internet connection and try again.');
   } finally {
     gpkgKnopf.disabled = false;
   }
@@ -1558,8 +1742,8 @@ function wendeDarstellungAn() {
   // Legende an die Radien anpassen
   document.getElementById('legende-innen').textContent = deutsch(e.radiusInnen, 0) + ' m';
   document.getElementById('legende-aussen').textContent = deutsch(e.radiusAussen, 0) + ' m';
-  document.getElementById('legende-innen-min').textContent = '≈ ' + deutsch(e.radiusInnen / GEHTEMPO_M_PRO_MIN, 0) + ' Min.';
-  document.getElementById('legende-aussen-min').textContent = '≈ ' + deutsch(e.radiusAussen / GEHTEMPO_M_PRO_MIN, 0) + ' Min.';
+  document.getElementById('legende-innen-min').textContent = '≈ ' + deutsch(e.radiusInnen / GEHTEMPO_M_PRO_MIN, 0) + ' ' + minWort();
+  document.getElementById('legende-aussen-min').textContent = '≈ ' + deutsch(e.radiusAussen / GEHTEMPO_M_PRO_MIN, 0) + ' ' + minWort();
 
   // Bedienelemente auf die aktuellen Werte setzen
   document.getElementById('farbe-frei').value = e.farbe.toLowerCase();
@@ -1576,8 +1760,8 @@ function wendeDarstellungAn() {
   document.getElementById('radius-innen').value = e.radiusInnen;
   document.getElementById('radius-aussen').value = e.radiusAussen;
   // Gehzeit neben den Radien (mit Umwegfaktor, wie im Zeitstrahl)
-  document.getElementById('radius-innen-min').textContent = '≈ ' + deutsch(e.radiusInnen * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN, 1) + ' Min.';
-  document.getElementById('radius-aussen-min').textContent = '≈ ' + deutsch(e.radiusAussen * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN, 1) + ' Min.';
+  document.getElementById('radius-innen-min').textContent = '≈ ' + deutsch(e.radiusInnen * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN, 1) + ' ' + minWort();
+  document.getElementById('radius-aussen-min').textContent = '≈ ' + deutsch(e.radiusAussen * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN, 1) + ' ' + minWort();
 
   // Vorhandene Kreise umfärben
   faerbeKreise();
@@ -1647,7 +1831,7 @@ function radienGeaendert() {
   const meldung = document.getElementById('darstellung-status');
 
   if (!(innen >= 100 && aussen <= 1500 && innen < aussen)) {
-    meldung.textContent = 'Radien: 100–1.500 m, der innere muss kleiner als der äußere sein.';
+    meldung.textContent = tx('Radien: 100–1.500 m, der innere muss kleiner als der äußere sein.', 'Radii: 100–1,500 m, the inner one must be smaller than the outer one.');
     return;
   }
   meldung.textContent = '';
@@ -1669,7 +1853,8 @@ document.getElementById('zuruecksetzen').addEventListener('click', function () {
   const radienAnders = einstellungen.radiusInnen !== STANDARD.radiusInnen ||
                        einstellungen.radiusAussen !== STANDARD.radiusAussen;
   document.getElementById('darstellung-status').textContent = '';
-  aendere(Object.assign({}, STANDARD));
+  // Profil und Sprache bleiben beim Zurücksetzen erhalten
+  aendere(Object.assign({}, STANDARD, { profil: einstellungen.profil, sprache: einstellungen.sprache }));
   if (radienAnders && letzterPunkt) analysiereStandort(letzterPunkt);
 });
 
@@ -1838,9 +2023,9 @@ const HeatSteuerung = L.Control.extend({
   onAdd: function () {
     heatKnopf = L.DomUtil.create('button', 'heat-knopf');
     heatKnopf.type = 'button';
-    heatKnopf.title = '15-Minuten-Bewertung für ganz Oldenburg einblenden';
+    heatKnopf.title = tx('15-Minuten-Bewertung für ganz Oldenburg einblenden', 'Show the 15-minute score for all of Oldenburg');
     heatKnopf.setAttribute('aria-pressed', 'false');
-    heatKnopf.innerHTML = '<span class="heat-symbol" aria-hidden="true"></span><span>Versorgungskarte</span>';
+    heatKnopf.innerHTML = '<span class="heat-symbol" aria-hidden="true"></span><span data-en="Access map">Versorgungskarte</span>';
     L.DomEvent.disableClickPropagation(heatKnopf);
     L.DomEvent.on(heatKnopf, 'click', schalteHeatmap);
     return heatKnopf;
@@ -1880,7 +2065,7 @@ function gleicherOrt(a, b) {
 function kurzName() {
   if (letzteAdresse) return letzteAdresse.split(',').slice(0, 2).join(',').trim();
   const halt = letzteBewertung && letzteBewertung.details.find(function (d) { return d.kat.id === 'oepnv'; });
-  if (halt && halt.naechstes && halt.naechstes.name) return 'bei ' + halt.naechstes.name;
+  if (halt && halt.naechstes && halt.naechstes.name) return tx('bei ', 'near ') + halt.naechstes.name;
   return deutsch(letzterPunkt.lat, 4) + ' / ' + deutsch(letzterPunkt.lng, 4);
 }
 
@@ -1888,10 +2073,10 @@ function kurzName() {
 function aktualisiereVarianteKnopf() {
   const i = varianten.findIndex(function (v) { return gleicherOrt(v, letzterPunkt); });
   if (i >= 0) {
-    varianteKnopf.textContent = '✓ Variante ' + BUCHSTABEN[i];
+    varianteKnopf.textContent = tx('✓ Variante ', '✓ Site ') + BUCHSTABEN[i];
     varianteKnopf.classList.add('gemerkt');
   } else {
-    varianteKnopf.textContent = '＋ Variante';
+    varianteKnopf.textContent = tx('＋ Variante', '＋ Save site');
     varianteKnopf.classList.remove('gemerkt');
   }
 }
@@ -1901,7 +2086,7 @@ varianteKnopf.addEventListener('click', function () {
   const i = varianten.findIndex(function (v) { return gleicherOrt(v, letzterPunkt); });
   if (i < 0) {
     if (varianten.length >= 3) {
-      zeigeVergleich(true, 'Höchstens 3 Varianten – entferne zuerst eine (×).');
+      zeigeVergleich(true, tx('Höchstens 3 Varianten – entferne zuerst eine (×).', 'At most 3 sites – remove one first (×).'));
       return;
     }
     varianten.push({ lat: letzterPunkt.lat, lng: letzterPunkt.lng, name: kurzName() });
@@ -1920,7 +2105,7 @@ function zeichneVariantenMarker() {
       icon: L.divIcon({ className: 'varianten-marke', html: '<span>' + BUCHSTABEN[i] + '</span>', iconSize: [26, 26] }),
       keyboard: false,
       zIndexOffset: 1000
-    }).bindTooltip('Variante ' + BUCHSTABEN[i] + ': ' + v.name, { direction: 'top', offset: [0, -12] })
+    }).bindTooltip(tx('Variante ', 'Site ') + BUCHSTABEN[i] + ': ' + v.name, { direction: 'top', offset: [0, -12] })
       .on('click', function () { gehZuVariante(i); })
       .addTo(variantenEbene);
   });
@@ -1931,7 +2116,7 @@ function zeichneVariantenMarker() {
 function gehZuVariante(i) {
   const v = varianten[i];
   // nur echte Adressen (aus der Suche) wieder als Adresse übernehmen
-  letzteAdresse = (v.name.indexOf(' / ') > 0 || v.name.indexOf('bei ') === 0) ? '' : v.name;
+  letzteAdresse = (v.name.indexOf(' / ') > 0 || v.name.indexOf('bei ') === 0 || v.name.indexOf('near ') === 0) ? '' : v.name;
   document.getElementById('suche-status').textContent = '';
   analysiereStandort(L.latLng(v.lat, v.lng));
 }
@@ -1959,10 +2144,11 @@ function zeichneVergleich(hinweis) {
   const inhalt = document.getElementById('vergleich-inhalt');
   const profil = aktivesProfil();
   document.getElementById('vergleich-info').textContent =
-    'Profil ' + profil.name + ' · ' + deutsch(einstellungen.radiusInnen, 0) + ' / ' + deutsch(einstellungen.radiusAussen, 0) + ' m';
+    tx('Profil ', 'Profile ') + lok(profil, 'name') + ' · ' + deutsch(einstellungen.radiusInnen, 0) + ' / ' + deutsch(einstellungen.radiusAussen, 0) + ' m';
 
   if (!varianten.length) {
-    inhalt.innerHTML = '<p class="vgl-leer">Noch keine Varianten. Wähle einen Standort und klicke im Panel auf „＋ Variante“. Bis zu drei Standorte lassen sich so vergleichen.</p>';
+    inhalt.innerHTML = '<p class="vgl-leer">' + tx('Noch keine Varianten. Wähle einen Standort und klicke im Panel auf „＋ Variante“. Bis zu drei Standorte lassen sich so vergleichen.',
+      'No sites saved yet. Choose a site and click “＋ Save site” in the panel. Up to three sites can be compared.') + '</p>';
     return;
   }
 
@@ -1976,22 +2162,22 @@ function zeichneVergleich(hinweis) {
   varianten.forEach(function (v, i) {
     const aktiv = gleicherOrt(v, letzterPunkt) ? ' aktiv' : '';
     html += '<th><div class="vgl-kopf' + aktiv + '">' +
-      '<button type="button" class="vgl-gehe" data-i="' + i + '" title="Zu Variante ' + BUCHSTABEN[i] + ' springen">' +
+      '<button type="button" class="vgl-gehe" data-i="' + i + '" title="' + tx('Zu Variante ', 'Go to site ') + BUCHSTABEN[i] + tx(' springen', '') + '">' +
         '<span class="vgl-buchstabe">' + BUCHSTABEN[i] + '</span>' +
         '<span class="vgl-name">' + v.name.replace(/</g, '&lt;') + '</span></button>' +
-      '<button type="button" class="vgl-weg" data-i="' + i + '" aria-label="Variante ' + BUCHSTABEN[i] + ' entfernen">×</button>' +
+      '<button type="button" class="vgl-weg" data-i="' + i + '" aria-label="' + tx('Variante ', 'Remove site ') + BUCHSTABEN[i] + tx(' entfernen', '') + '">×</button>' +
       '</div></th>';
   });
   html += '</tr></thead><tbody>';
 
   // Zeile "Bewertung": größte Punktzahl hervorheben
   const besterWert = Math.max.apply(null, bewertungen.map(function (b) { return b ? b.punkte : -1; }));
-  html += '<tr class="vgl-gesamt"><th>Bewertung</th>';
+  html += '<tr class="vgl-gesamt"><th>' + tx('Bewertung', 'Score') + '</th>';
   bewertungen.forEach(function (b) {
-    if (!b) { html += '<td><span class="vgl-ausserhalb">außerhalb</span></td>'; return; }
+    if (!b) { html += '<td><span class="vgl-ausserhalb">' + tx('außerhalb', 'outside') + '</span></td>'; return; }
     const best = b.punkte === besterWert && varianten.length > 1 ? ' bester' : '';
     html += '<td class="' + best + '"><span class="vgl-zahl">' + b.punkte + '<small>/' + b.maximum + '</small></span>' +
-      '<span class="vgl-stufe">' + b.stufe.replace(' versorgt', '') + '</span></td>';
+      '<span class="vgl-stufe">' + b.stufe.replace(tx(' versorgt', ' served'), '') + '</span></td>';
   });
   html += '</tr>';
 
@@ -1999,7 +2185,7 @@ function zeichneVergleich(hinweis) {
   KATEGORIEN.forEach(function (kat, k) {
     const zeile = bewertungen.map(function (b) { return b ? b.details[k] : null; });
     const kuerzeste = Math.min.apply(null, zeile.map(function (d) { return d ? minuten(d) : Infinity; }));
-    html += '<tr><th>' + symbolSvg(kat.id) + '<span>' + kat.kurz + '</span></th>';
+    html += '<tr><th>' + symbolSvg(kat.id) + '<span>' + lok(kat, 'kurz') + '</span></th>';
     zeile.forEach(function (d) {
       if (!d) { html += '<td>–</td>'; return; }
       let felder = '';
@@ -2007,7 +2193,7 @@ function zeichneVergleich(hinweis) {
         felder += '<span class="punkt' + (p < d.punkte ? ' voll' : '') + '" style="--kat:' + kat.farbe + '"></span>';
       }
       const t = minuten(d);
-      const text = t === Infinity ? '> 3 km' : (t > 99 ? '> 99' : Math.max(1, Math.round(t))) + ' Min.';
+      const text = t === Infinity ? '> 3 km' : (t > 99 ? '> 99' : Math.max(1, Math.round(t))) + ' ' + minWort();
       const best = t === kuerzeste && varianten.length > 1 && t !== Infinity ? ' bester' : '';
       html += '<td class="' + best + '"><span class="auf-punkte">' + felder + '</span><span class="vgl-min">' + text + '</span></td>';
     });
@@ -2037,17 +2223,17 @@ function zeichneVergleich(hinweis) {
 // Ein Satz als Fazit, z. B. "Für Familie ist B am besten versorgt (8/10)."
 function fazit(bewertungen, profil) {
   const gueltig = bewertungen.map(function (b, i) { return { b: b, i: i }; }).filter(function (x) { return x.b; });
-  if (!gueltig.length) return 'Keine Variante liegt im Datengebiet.';
-  if (gueltig.length === 1) return 'Merke eine zweite Variante, um zu vergleichen.';
+  if (!gueltig.length) return tx('Keine Variante liegt im Datengebiet.', 'No site lies within the data area.');
+  if (gueltig.length === 1) return tx('Merke eine zweite Variante, um zu vergleichen.', 'Save a second site to compare.');
   gueltig.sort(function (x, y) { return y.b.punkte - x.b.punkte; });
   const spitze = gueltig.filter(function (x) { return x.b.punkte === gueltig[0].b.punkte; });
   const wert = '(' + gueltig[0].b.punkte + '/' + gueltig[0].b.maximum + ')';
   if (spitze.length > 1) {
-    return 'Für <strong>' + profil.name + '</strong> liegen ' +
-      spitze.map(function (x) { return BUCHSTABEN[x.i]; }).join(' und ') + ' gleichauf vorn ' + wert + '.';
+    return tx('Für <strong>', 'For <strong>') + lok(profil, 'name') + tx('</strong> liegen ', '</strong>, ') +
+      spitze.map(function (x) { return BUCHSTABEN[x.i]; }).join(tx(' und ', ' and ')) + tx(' gleichauf vorn ', ' are tied for first ') + wert + '.';
   }
-  return 'Für <strong>' + profil.name + '</strong> ist <strong>Variante ' + BUCHSTABEN[spitze[0].i] +
-    '</strong> am besten versorgt ' + wert + '.';
+  return tx('Für <strong>', 'For <strong>') + lok(profil, 'name') + tx('</strong> ist <strong>Variante ', '</strong>, <strong>site ') + BUCHSTABEN[spitze[0].i] +
+    tx('</strong> am besten versorgt ', '</strong> is best served ') + wert + '.';
 }
 
 // Knopf "Vergleich" auf der Karte (unter "Versorgungskarte"), mit Anzahl
@@ -2056,7 +2242,7 @@ const VergleichSteuerung = L.Control.extend({
   onAdd: function () {
     const knopf = L.DomUtil.create('button', 'heat-knopf vergleich-knopf');
     knopf.type = 'button';
-    knopf.title = 'Gemerkte Varianten vergleichen';
+    knopf.title = tx('Gemerkte Varianten vergleichen', 'Compare saved sites');
     L.DomEvent.disableClickPropagation(knopf);
     L.DomEvent.on(knopf, 'click', function () { zeigeVergleich(vergleichFenster.hidden); });
     this.knopf = knopf;
@@ -2065,7 +2251,7 @@ const VergleichSteuerung = L.Control.extend({
   aktualisiere: function () {
     if (!this.knopf) return;
     this.knopf.innerHTML = '<span class="vergleich-symbol" aria-hidden="true">' +
-      (varianten.length ? BUCHSTABEN.slice(0, varianten.length).join('') : '+') + '</span><span>Vergleich</span>';
+      (varianten.length ? BUCHSTABEN.slice(0, varianten.length).join('') : '+') + '</span><span>' + tx('Vergleich', 'Compare') + '</span>';
     this.knopf.hidden = !varianten.length;
   }
 });
@@ -2087,7 +2273,7 @@ function baueLegende() {
   KATEGORIEN.forEach(function (kat) {
     const li = document.createElement('li');
     li.className = 'legende-kat';
-    li.innerHTML = '<span class="legende-symbol">' + symbolSvg(kat.id) + '</span>' + kat.kurz;
+    li.innerHTML = '<span class="legende-symbol">' + symbolSvg(kat.id) + '</span>' + lok(kat, 'kurz');
     ende.parentNode.insertBefore(li, ende);
   });
 }
@@ -2099,10 +2285,12 @@ function zeigeProfil() {
     knopf.classList.toggle('aktiv', an);
     knopf.setAttribute('aria-checked', an ? 'true' : 'false');
   });
-  document.getElementById('profil-name').textContent = p.name;
+  const profilName = document.getElementById('profil-name');
+  if (profilName) profilName.textContent = lok(p, 'name');
   document.querySelectorAll('.profil-knopf').forEach(function (knopf) {
     const profil = PROFILE.find(function (x) { return x.id === knopf.dataset.profil; });
-    knopf.title = profil.text;   // Erklärung beim Darüberfahren
+    knopf.title = lok(profil, 'text');   // Erklärung beim Darüberfahren
+    knopf.textContent = lok(profil, 'name');
   });
 }
 
@@ -2124,5 +2312,75 @@ document.querySelectorAll('.profil-knopf').forEach(function (knopf) {
 zeigeProfil();
 baueLegende();
 
+// ------------------------------------------------------------
+// Sprache umschalten (Knöpfe DE / EN oben im Panel)
+// ------------------------------------------------------------
+// Feste Texte im HTML: Das englische Wort steht im Attribut data-en
+// (bzw. data-en-title, data-en-placeholder, data-en-aria-label).
+// Der deutsche Originaltext wird beim ersten Umschalten gemerkt.
+function wendeSpracheAn() {
+  const en = einstellungen.sprache === 'en';
+  document.documentElement.lang = einstellungen.sprache;
+  document.title = tx('Stadt in 15 – Standortanalyse Oldenburg', 'Stadt in 15 – 15-minute city site analysis, Oldenburg');
+
+  document.querySelectorAll('[data-en]').forEach(function (el) {
+    if (el.dataset.de === undefined) el.dataset.de = el.innerHTML;
+    el.innerHTML = en ? el.dataset.en : el.dataset.de;
+  });
+  [['title', 'enTitle', 'deTitle'], ['placeholder', 'enPlaceholder', 'dePlaceholder'],
+   ['aria-label', 'enAriaLabel', 'deAriaLabel']].forEach(function (a) {
+    document.querySelectorAll('[data-en-' + a[0] + ']').forEach(function (el) {
+      if (el.dataset[a[2]] === undefined) el.dataset[a[2]] = el.getAttribute(a[0]) || '';
+      el.setAttribute(a[0], en ? el.dataset[a[1]] : el.dataset[a[2]]);
+    });
+  });
+
+  document.querySelectorAll('.sprache-knopf').forEach(function (k) {
+    const an = k.dataset.sprache === einstellungen.sprache;
+    k.classList.toggle('aktiv', an);
+    k.setAttribute('aria-checked', an ? 'true' : 'false');
+  });
+}
+
+// Alles, was das Programm selbst schreibt, neu erzeugen
+function aktualisiereTexte() {
+  wendeSpracheAn();
+  setzeOsmHinweis();
+  zeigeProfil();
+  baueLegende();
+  wendeDarstellungAn();
+  vergleichsSteuerung.aktualisiere();
+  aktualisiereVarianteKnopf();
+  if (heatKnopf) heatKnopf.title = tx('15-Minuten-Bewertung für ganz Oldenburg einblenden', 'Show the 15-minute score for all of Oldenburg');
+  document.getElementById('suche-status').textContent = '';
+  document.getElementById('export-status').textContent = '';
+  if (!vergleichFenster.hidden) zeichneVergleich();
+
+  // Panel mit dem aktuellen Standort neu beschriften (ohne Karte neu zu zeichnen)
+  if (letzterPunkt) {
+    document.getElementById('wert-koordinaten').textContent =
+      deutsch(letzterPunkt.lat, 5) + '° N · ' + deutsch(letzterPunkt.lng, 5) + tx('° O', '° E');
+    zeigeEinzugsbereiche();
+    const status = document.getElementById('infra-status');
+    if (window.OSM_DATEN && imDatengebiet(letzterPunkt)) {
+      letzteBewertung = berechneBewertung(zaehle(letzterPunkt).zaehler);
+      status.textContent = tx('OSM-Stand ', 'OSM data as of ') + OSM_DATEN.datenstand +
+        tx('. Parks zählen ab ihrem Rand.', '. Parks count from their edge.');
+    }
+    zeigeBewertung(letzteBewertung);
+  }
+}
+
+document.querySelectorAll('.sprache-knopf').forEach(function (knopf) {
+  knopf.addEventListener('click', function () {
+    if (knopf.dataset.sprache === einstellungen.sprache) return;
+    einstellungen.sprache = knopf.dataset.sprache;
+    speichereEinstellungen();
+    aktualisiereTexte();
+  });
+});
+
 // Beim Laden der Seite einmal anwenden (gespeicherte Einstellungen)
 wendeDarstellungAn();
+// … und die gespeicherte Sprache
+if (einstellungen.sprache === 'en') aktualisiereTexte(); else wendeSpracheAn();
