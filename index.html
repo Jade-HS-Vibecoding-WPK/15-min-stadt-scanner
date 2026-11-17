@@ -26,6 +26,8 @@
         <li><span class="swatch swatch-800"></span><span id="legende-aussen">800 m</span> <span class="mono" id="legende-aussen-min">≈ 10 Min.</span></li>
         <!-- Kategorien je nach Profil: werden von script.js eingefügt -->
         <li id="legende-kategorien-ende" hidden></li>
+        <!-- nur sichtbar, wenn Varianten gemerkt sind -->
+        <li id="legende-varianten" hidden><span class="legende-symbol"><span class="legende-buchstabe">A</span></span><span>Variante</span></li>
         <!-- nur sichtbar, wenn die Versorgungskarte an ist -->
         <li id="legende-heat" class="legende-heat" hidden>
           <span class="heat-verlauf"></span>
@@ -71,7 +73,11 @@
     <section id="kennzahlen" hidden>
       <!-- 1) Ergebnis zuerst: die 15-Minuten-Bewertung, groß -->
       <div class="ergebnis" id="ergebnis">
-        <p class="label"><span class="nr">01</span>15-Minuten-Bewertung · <span id="profil-name">Alltag</span></p>
+        <div class="kachel-kopf">
+          <p class="label"><span class="nr">01</span>Bewertung · <span id="profil-name">Alltag</span></p>
+          <!-- Standort als Variante merken (für den Vergleich) -->
+          <button type="button" id="variante-knopf" class="chip" title="Diesen Standort für den Variantenvergleich merken">＋ Variante</button>
+        </div>
 
         <!-- Ganze Zeile ist ein Knopf: Klick klappt die Aufschlüsselung auf -->
         <button type="button" class="ergebnis-zeile" id="bewertung-knopf"
@@ -205,6 +211,19 @@
     <div class="fenster-fuss">
       <button type="button" id="zuruecksetzen" class="link-knopf">Zurücksetzen</button>
       <span>Änderungen werden gespeichert</span>
+    </div>
+  </div>
+
+  <!-- Variantenvergleich: bis zu 3 gemerkte Standorte nebeneinander -->
+  <div id="vergleich" class="glas-fenster vergleich-fenster" role="dialog" aria-label="Variantenvergleich" hidden>
+    <div class="fenster-kopf">
+      <strong>Variantenvergleich</strong>
+      <button type="button" id="vergleich-zu" class="fenster-zu" aria-label="Schließen">✕</button>
+    </div>
+    <div id="vergleich-inhalt"><!-- wird von script.js gefüllt --></div>
+    <div class="fenster-fuss">
+      <span id="vergleich-info"></span>
+      <button type="button" id="vergleich-leeren" class="link-knopf">Alle entfernen</button>
     </div>
   </div>
 

@@ -359,6 +359,156 @@ h1 {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 
+/* ===== Variantenvergleich ===== */
+
+/* Kopf der Kachel 01: Überschrift links, Knopf "+ Variante" rechts */
+.kachel-kopf { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.kachel-kopf .label { margin-bottom: 6px; }
+.chip {
+  flex-shrink: 0;
+  margin: -4px -4px 2px 0;
+  padding: 3px 9px;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  transition: background 0.2s, transform 0.25s var(--feder);
+}
+.chip:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.chip:active { transform: scale(0.94); }
+.chip.gemerkt { background: rgba(60, 60, 67, 0.08); color: var(--grey); }
+
+/* Buchstaben-Marker A/B/C auf der Karte */
+.varianten-marke { background: none; border: none; }
+.varianten-marke span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  animation: auftauchen 0.45s var(--feder) both;
+}
+
+/* Legenden-Eintrag "Variante" (kleiner schwarzer Kreis mit Buchstabe) */
+.legende-buchstabe {
+  display: flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  background: var(--ink);
+  font-size: 8.5px; font-weight: 700; color: #fff;
+}
+
+/* Knopf "Vergleich" auf der Karte (gleiche Kapsel wie "Versorgungskarte") */
+.vergleich-knopf { margin-top: 8px !important; }
+.vergleich-knopf[hidden] { display: none; }
+.vergleich-symbol {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--ink);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  letter-spacing: 0.08em;
+  color: #fff;
+  text-align: center;
+}
+
+/* Das Fenster: etwas breiter als "Darstellung" */
+.glas-fenster.vergleich-fenster { width: 420px; }
+.vgl-leer { padding: 6px 0 12px; font-size: 12.5px; line-height: 1.5; color: var(--grey); }
+
+.vgl-tabelle { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.vgl-tabelle th, .vgl-tabelle td { padding: 6px 4px; border-top: 1px solid var(--hair); vertical-align: middle; }
+.vgl-tabelle thead th { border-top: none; padding-top: 0; }
+.vgl-tabelle tbody th {
+  width: 118px;
+  font-size: 11.5px;
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+}
+.vgl-tabelle tbody th .sym { margin-right: 6px; }
+.vgl-tabelle thead th:first-child { width: 118px; }
+.vgl-tabelle td { text-align: center; border-radius: 8px; }
+.vgl-tabelle td.bester { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+
+/* Spaltenkopf: Buchstabe + Name, × zum Entfernen */
+.vgl-kopf { position: relative; display: flex; justify-content: center; }
+.vgl-gehe {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 4px 2px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+}
+.vgl-gehe:hover { background: rgba(255, 255, 255, 0.7); }
+.vgl-buchstabe {
+  display: flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--ink);
+  font-size: 11px; font-weight: 700; color: #fff;
+}
+.vgl-kopf.aktiv .vgl-buchstabe { background: var(--accent); }
+.vgl-name {
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--grey);
+}
+.vgl-weg {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(60, 60, 67, 0.1);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--grey);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.vgl-kopf:hover .vgl-weg, .vgl-weg:focus { opacity: 1; }
+
+/* Gesamt-Zeile: große Zahl */
+.vgl-gesamt td { padding-top: 8px; padding-bottom: 8px; }
+.vgl-zahl { display: block; font-family: var(--mono); font-size: 20px; font-weight: 600; color: var(--accent); line-height: 1.1; }
+.vgl-zahl small { font-size: 10px; color: var(--grey); font-weight: 400; }
+.vgl-stufe { display: block; font-size: 10.5px; color: var(--grey); }
+.vgl-ausserhalb { font-size: 10.5px; color: var(--grey); }
+
+/* Kategorie-Zellen: Punkte-Balken + Minuten */
+.vgl-tabelle td .auf-punkte { justify-content: center; margin-bottom: 3px; }
+.vgl-min { display: block; font-family: var(--mono); font-size: 10.5px; }
+.vgl-tabelle td.bester .vgl-min { font-weight: 600; color: var(--accent); }
+
+.vgl-fazit { margin: 10px 0 2px; font-size: 12.5px; line-height: 1.45; }
+.vgl-hinweis { color: #FF3B30; }
+
 /* Nur für Screenreader sichtbar (z. B. Beschriftung der Suche) */
 .unsichtbar {
   position: absolute; width: 1px; height: 1px; overflow: hidden;
@@ -442,7 +592,7 @@ h1 {
 }
 .zs-marke .sym { width: 12px; height: 12px; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25)); }
 .zs-marke .sym-flaeche { width: 15px; }
-.zs-marke.links { flex-direction: row-reverse; transform: translate(calc(-100% + 6px), -50%); }
+.zs-marke.links { flex-direction: row-reverse; transform: translate(calc(-100% + 2px), -50%); }
 .zs-zeit { font-family: var(--mono); font-size: 10.5px; color: var(--ink); }
 
 /* Minuten-Achse unter der Fläche */

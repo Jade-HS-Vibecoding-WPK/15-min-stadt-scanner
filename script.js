@@ -331,6 +331,12 @@ function analysiereStandort(punkt) {
 
   // Infrastruktur aus den mitgelieferten OSM-Daten zählen
   zaehleInfrastruktur(punkt);
+
+  // Variantenvergleich: Knopf "+ Variante" und offenes Fenster auffrischen
+  if (typeof aktualisiereVarianteKnopf === 'function') {
+    aktualisiereVarianteKnopf();
+    if (!vergleichFenster.hidden) zeichneVergleich();
+  }
 }
 
 // ------------------------------------------------------------
@@ -343,8 +349,6 @@ let standortMarker = null;   // damit der Standort-Punkt oben bleibt
 let letzteOrte = null;       // zuletzt gefundene Orte (für den GeoPackage-Export)
 
 function zaehleInfrastruktur(punkt) {
-  const rInnen = einstellungen.radiusInnen;
-  const rAussen = einstellungen.radiusAussen;
   const status = document.getElementById('infra-status');
   letzteOrte = null;
   letzteBewertung = null;
@@ -357,6 +361,25 @@ function zaehleInfrastruktur(punkt) {
       : 'Infrastruktur-Daten konnten nicht geladen werden.';
     return;
   }
+
+  const ergebnis = zaehle(punkt);
+  ergebnis.gefunden.forEach(function (fund) { zeichneOrt(fund.ort); });
+
+  // Ergebnisse ins Panel schreiben (Anzahlen stehen in der Aufschlüsselung)
+  status.textContent = 'OSM-Stand ' + OSM_DATEN.datenstand + '. Parks zählen ab ihrem Rand.';
+
+  letzteOrte = ergebnis.gefunden;
+  letzteBewertung = berechneBewertung(ergebnis.zaehler);
+  zeigeBewertung(letzteBewertung);
+  faerbeKreise();
+  if (standortMarker) standortMarker.bringToFront();
+}
+
+// Reine Rechnung (ohne Zeichnen): zählt die Ziele um einen Punkt.
+//   Wird für den analysierten Standort UND für die Varianten benutzt.
+function zaehle(punkt) {
+  const rInnen = einstellungen.radiusInnen;
+  const rAussen = einstellungen.radiusAussen;
 
   // Zähler für jede Kategorie vorbereiten
   const zaehler = {};
@@ -385,18 +408,15 @@ function zaehleInfrastruktur(punkt) {
     zaehler[kat].aussen++;
     if (entfernung <= rInnen) zaehler[kat].innen++;
     gefunden.push({ ort: ort, entfernung: entfernung });
-
-    zeichneOrt(ort);
   });
 
-  // Ergebnisse ins Panel schreiben (Anzahlen stehen in der Aufschlüsselung)
-  status.textContent = 'OSM-Stand ' + OSM_DATEN.datenstand + '. Parks zählen ab ihrem Rand.';
+  return { zaehler: zaehler, gefunden: gefunden };
+}
 
-  letzteOrte = gefunden;
-  letzteBewertung = berechneBewertung(zaehler);
-  zeigeBewertung(letzteBewertung);
-  faerbeKreise();
-  if (standortMarker) standortMarker.bringToFront();
+// Bewertung für einen beliebigen Punkt (null = außerhalb des Datengebiets)
+function bewerteOrt(punkt) {
+  if (!window.OSM_DATEN || !imDatengebiet(punkt)) return null;
+  return berechneBewertung(zaehle(punkt).zaehler);
 }
 
 // ------------------------------------------------------------
@@ -918,6 +938,7 @@ async function kartenBild(format, pixelRatio) {
     // Zoom-Knöpfe (+/−) gehören nicht aufs Poster → weglassen
     filter: function (element) {
       // (auch der Knopf "Versorgungskarte")
+      // (auch die Knöpfe "Versorgungskarte" und "Vergleich")
       return !(element.classList && (element.classList.contains('leaflet-control-zoom') ||
                                      element.classList.contains('heat-knopf')));
     }
@@ -1589,6 +1610,7 @@ document.querySelectorAll('.stil-knopf').forEach(function (knopf) {
 const darstellungFenster = document.getElementById('darstellung');
 const darstellungKnopf = document.getElementById('darstellung-knopf');
 function zeigeDarstellung(offen) {
+  if (offen && typeof zeigeVergleich === 'function') zeigeVergleich(false);
   darstellungFenster.hidden = !offen;
   darstellungKnopf.setAttribute('aria-expanded', offen ? 'true' : 'false');
 }
@@ -1634,6 +1656,7 @@ function radienGeaendert() {
   // Gibt es schon einen Standort? Dann neu analysieren (neue Kreise, neue Zählung).
   // Kurz warten, falls mehrmals schnell auf +/− geklickt wird.
   if (heatAn) zeigeHeatmap();   // Versorgungskarte mit neuen Radien
+  if (!vergleichFenster.hidden) zeichneVergleich();   // Varianten mit neuen Radien
   clearTimeout(radienTimer);
   if (letzterPunkt) radienTimer = setTimeout(function () { analysiereStandort(letzterPunkt); }, 350);
 }
@@ -1826,6 +1849,231 @@ const HeatSteuerung = L.Control.extend({
 new HeatSteuerung().addTo(map);
 
 // ------------------------------------------------------------
+// Variantenvergleich: bis zu 3 Standorte merken (A, B, C) und
+// nebeneinander vergleichen – wie bei der Standortwahl im Entwurf.
+// Die Varianten werden im Browser gespeichert und immer mit dem
+// aktuellen Profil und den aktuellen Radien neu bewertet.
+// ------------------------------------------------------------
+const VARIANTEN_NAME = 'stadtScannerVarianten-v1';
+const BUCHSTABEN = ['A', 'B', 'C'];
+let varianten = ladeVarianten();                  // [{ lat, lng, name }]
+const variantenEbene = L.layerGroup().addTo(map);  // Buchstaben-Marker
+const vergleichFenster = document.getElementById('vergleich');
+const varianteKnopf = document.getElementById('variante-knopf');
+
+function ladeVarianten() {
+  try {
+    const liste = JSON.parse(localStorage.getItem(VARIANTEN_NAME)) || [];
+    return liste.filter(function (v) { return isFinite(v.lat) && isFinite(v.lng); }).slice(0, 3);
+  } catch (e) { return []; }
+}
+function speichereVarianten() {
+  try { localStorage.setItem(VARIANTEN_NAME, JSON.stringify(varianten)); } catch (e) { /* ignorieren */ }
+}
+
+function gleicherOrt(a, b) {
+  return a && b && Math.abs(a.lat - b.lat) < 1e-6 && Math.abs(a.lng - b.lng) < 1e-6;
+}
+
+// Kurzer Name: Straße aus der Adresssuche – sonst die nächste
+// Haltestelle ("bei Lappan"), sonst die Koordinaten
+function kurzName() {
+  if (letzteAdresse) return letzteAdresse.split(',').slice(0, 2).join(',').trim();
+  const halt = letzteBewertung && letzteBewertung.details.find(function (d) { return d.kat.id === 'oepnv'; });
+  if (halt && halt.naechstes && halt.naechstes.name) return 'bei ' + halt.naechstes.name;
+  return deutsch(letzterPunkt.lat, 4) + ' / ' + deutsch(letzterPunkt.lng, 4);
+}
+
+// Knopf "+ Variante" im Panel: zeigt, ob der Standort schon gemerkt ist
+function aktualisiereVarianteKnopf() {
+  const i = varianten.findIndex(function (v) { return gleicherOrt(v, letzterPunkt); });
+  if (i >= 0) {
+    varianteKnopf.textContent = '✓ Variante ' + BUCHSTABEN[i];
+    varianteKnopf.classList.add('gemerkt');
+  } else {
+    varianteKnopf.textContent = '＋ Variante';
+    varianteKnopf.classList.remove('gemerkt');
+  }
+}
+
+varianteKnopf.addEventListener('click', function () {
+  if (!letzterPunkt) return;
+  const i = varianten.findIndex(function (v) { return gleicherOrt(v, letzterPunkt); });
+  if (i < 0) {
+    if (varianten.length >= 3) {
+      zeigeVergleich(true, 'Höchstens 3 Varianten – entferne zuerst eine (×).');
+      return;
+    }
+    varianten.push({ lat: letzterPunkt.lat, lng: letzterPunkt.lng, name: kurzName() });
+    speichereVarianten();
+    zeichneVariantenMarker();
+  }
+  aktualisiereVarianteKnopf();
+  zeigeVergleich(true);
+});
+
+// Buchstaben-Marker A/B/C auf der Karte (auch im PNG/PDF sichtbar)
+function zeichneVariantenMarker() {
+  variantenEbene.clearLayers();
+  varianten.forEach(function (v, i) {
+    L.marker([v.lat, v.lng], {
+      icon: L.divIcon({ className: 'varianten-marke', html: '<span>' + BUCHSTABEN[i] + '</span>', iconSize: [26, 26] }),
+      keyboard: false,
+      zIndexOffset: 1000
+    }).bindTooltip('Variante ' + BUCHSTABEN[i] + ': ' + v.name, { direction: 'top', offset: [0, -12] })
+      .on('click', function () { gehZuVariante(i); })
+      .addTo(variantenEbene);
+  });
+  vergleichsSteuerung.aktualisiere();
+  document.getElementById('legende-varianten').hidden = !varianten.length;
+}
+
+function gehZuVariante(i) {
+  const v = varianten[i];
+  // nur echte Adressen (aus der Suche) wieder als Adresse übernehmen
+  letzteAdresse = (v.name.indexOf(' / ') > 0 || v.name.indexOf('bei ') === 0) ? '' : v.name;
+  document.getElementById('suche-status').textContent = '';
+  analysiereStandort(L.latLng(v.lat, v.lng));
+}
+
+// Vergleichs-Fenster öffnen / schließen (das Darstellungs-Fenster geht dann zu)
+function zeigeVergleich(offen, hinweis) {
+  if (offen) zeigeDarstellung(false);
+  vergleichFenster.hidden = !offen;
+  if (offen) zeichneVergleich(hinweis);
+}
+document.getElementById('vergleich-zu').addEventListener('click', function () { zeigeVergleich(false); });
+document.addEventListener('keydown', function (event) {
+  if (event.key === 'Escape') zeigeVergleich(false);
+});
+document.getElementById('vergleich-leeren').addEventListener('click', function () {
+  varianten = [];
+  speichereVarianten();
+  zeichneVariantenMarker();
+  aktualisiereVarianteKnopf();
+  zeichneVergleich();
+});
+
+// Die Tabelle: Spalten = Varianten, Zeilen = Bewertung + Kategorien
+function zeichneVergleich(hinweis) {
+  const inhalt = document.getElementById('vergleich-inhalt');
+  const profil = aktivesProfil();
+  document.getElementById('vergleich-info').textContent =
+    'Profil ' + profil.name + ' · ' + deutsch(einstellungen.radiusInnen, 0) + ' / ' + deutsch(einstellungen.radiusAussen, 0) + ' m';
+
+  if (!varianten.length) {
+    inhalt.innerHTML = '<p class="vgl-leer">Noch keine Varianten. Wähle einen Standort und klicke im Panel auf „＋ Variante“. Bis zu drei Standorte lassen sich so vergleichen.</p>';
+    return;
+  }
+
+  const bewertungen = varianten.map(function (v) { return bewerteOrt(L.latLng(v.lat, v.lng)); });
+  const minuten = function (d) {
+    return d.naechstes ? d.naechstes.entfernung * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN : Infinity;
+  };
+
+  // Kopfzeile: Buchstabe + Name (Klick = dorthin springen), × = entfernen
+  let html = '<table class="vgl-tabelle"><thead><tr><th></th>';
+  varianten.forEach(function (v, i) {
+    const aktiv = gleicherOrt(v, letzterPunkt) ? ' aktiv' : '';
+    html += '<th><div class="vgl-kopf' + aktiv + '">' +
+      '<button type="button" class="vgl-gehe" data-i="' + i + '" title="Zu Variante ' + BUCHSTABEN[i] + ' springen">' +
+        '<span class="vgl-buchstabe">' + BUCHSTABEN[i] + '</span>' +
+        '<span class="vgl-name">' + v.name.replace(/</g, '&lt;') + '</span></button>' +
+      '<button type="button" class="vgl-weg" data-i="' + i + '" aria-label="Variante ' + BUCHSTABEN[i] + ' entfernen">×</button>' +
+      '</div></th>';
+  });
+  html += '</tr></thead><tbody>';
+
+  // Zeile "Bewertung": größte Punktzahl hervorheben
+  const besterWert = Math.max.apply(null, bewertungen.map(function (b) { return b ? b.punkte : -1; }));
+  html += '<tr class="vgl-gesamt"><th>Bewertung</th>';
+  bewertungen.forEach(function (b) {
+    if (!b) { html += '<td><span class="vgl-ausserhalb">außerhalb</span></td>'; return; }
+    const best = b.punkte === besterWert && varianten.length > 1 ? ' bester' : '';
+    html += '<td class="' + best + '"><span class="vgl-zahl">' + b.punkte + '<small>/' + b.maximum + '</small></span>' +
+      '<span class="vgl-stufe">' + b.stufe.replace(' versorgt', '') + '</span></td>';
+  });
+  html += '</tr>';
+
+  // Eine Zeile pro Kategorie: Punkte-Balken + Minuten zum nächsten Ziel
+  KATEGORIEN.forEach(function (kat, k) {
+    const zeile = bewertungen.map(function (b) { return b ? b.details[k] : null; });
+    const kuerzeste = Math.min.apply(null, zeile.map(function (d) { return d ? minuten(d) : Infinity; }));
+    html += '<tr><th>' + symbolSvg(kat.id) + '<span>' + kat.kurz + '</span></th>';
+    zeile.forEach(function (d) {
+      if (!d) { html += '<td>–</td>'; return; }
+      let felder = '';
+      for (let p = 0; p < 2; p++) {
+        felder += '<span class="punkt' + (p < d.punkte ? ' voll' : '') + '" style="--kat:' + kat.farbe + '"></span>';
+      }
+      const t = minuten(d);
+      const text = t === Infinity ? '> 3 km' : (t > 99 ? '> 99' : Math.max(1, Math.round(t))) + ' Min.';
+      const best = t === kuerzeste && varianten.length > 1 && t !== Infinity ? ' bester' : '';
+      html += '<td class="' + best + '"><span class="auf-punkte">' + felder + '</span><span class="vgl-min">' + text + '</span></td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+
+  // Fazit in einem Satz
+  html += '<p class="vgl-fazit">' + fazit(bewertungen, profil) + '</p>';
+  if (hinweis) html += '<p class="anmerkung vgl-hinweis">' + hinweis + '</p>';
+  inhalt.innerHTML = html;
+
+  inhalt.querySelectorAll('.vgl-gehe').forEach(function (k) {
+    k.addEventListener('click', function () { gehZuVariante(Number(k.dataset.i)); });
+  });
+  inhalt.querySelectorAll('.vgl-weg').forEach(function (k) {
+    k.addEventListener('click', function () {
+      varianten.splice(Number(k.dataset.i), 1);
+      speichereVarianten();
+      zeichneVariantenMarker();
+      aktualisiereVarianteKnopf();
+      zeichneVergleich();
+    });
+  });
+}
+
+// Ein Satz als Fazit, z. B. "Für Familie ist B am besten versorgt (8/10)."
+function fazit(bewertungen, profil) {
+  const gueltig = bewertungen.map(function (b, i) { return { b: b, i: i }; }).filter(function (x) { return x.b; });
+  if (!gueltig.length) return 'Keine Variante liegt im Datengebiet.';
+  if (gueltig.length === 1) return 'Merke eine zweite Variante, um zu vergleichen.';
+  gueltig.sort(function (x, y) { return y.b.punkte - x.b.punkte; });
+  const spitze = gueltig.filter(function (x) { return x.b.punkte === gueltig[0].b.punkte; });
+  const wert = '(' + gueltig[0].b.punkte + '/' + gueltig[0].b.maximum + ')';
+  if (spitze.length > 1) {
+    return 'Für <strong>' + profil.name + '</strong> liegen ' +
+      spitze.map(function (x) { return BUCHSTABEN[x.i]; }).join(' und ') + ' gleichauf vorn ' + wert + '.';
+  }
+  return 'Für <strong>' + profil.name + '</strong> ist <strong>Variante ' + BUCHSTABEN[spitze[0].i] +
+    '</strong> am besten versorgt ' + wert + '.';
+}
+
+// Knopf "Vergleich" auf der Karte (unter "Versorgungskarte"), mit Anzahl
+const VergleichSteuerung = L.Control.extend({
+  options: { position: 'topleft' },
+  onAdd: function () {
+    const knopf = L.DomUtil.create('button', 'heat-knopf vergleich-knopf');
+    knopf.type = 'button';
+    knopf.title = 'Gemerkte Varianten vergleichen';
+    L.DomEvent.disableClickPropagation(knopf);
+    L.DomEvent.on(knopf, 'click', function () { zeigeVergleich(vergleichFenster.hidden); });
+    this.knopf = knopf;
+    return knopf;
+  },
+  aktualisiere: function () {
+    if (!this.knopf) return;
+    this.knopf.innerHTML = '<span class="vergleich-symbol" aria-hidden="true">' +
+      (varianten.length ? BUCHSTABEN.slice(0, varianten.length).join('') : '+') + '</span><span>Vergleich</span>';
+    this.knopf.hidden = !varianten.length;
+  }
+});
+const vergleichsSteuerung = new VergleichSteuerung().addTo(map);
+
+zeichneVariantenMarker();
+
+// ------------------------------------------------------------
 // Zielgruppen-Profile umschalten (Alltag, Familie, Senioren, Studierende)
 // ------------------------------------------------------------
 function aktivesProfil() {
@@ -1867,6 +2115,7 @@ function waehleProfil(id) {
   baueLegende();
   if (heatAn) zeigeHeatmap();                         // Versorgungskarte neu rechnen
   if (letzterPunkt) analysiereStandort(letzterPunkt); // Bewertung neu
+  if (!vergleichFenster.hidden) zeichneVergleich();   // Varianten neu bewerten
 }
 
 document.querySelectorAll('.profil-knopf').forEach(function (knopf) {
