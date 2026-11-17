@@ -844,11 +844,20 @@ const exportStatus = document.getElementById('export-status');
 //   Großer Bildschirm: Panel rechts → Rand rechts.
 //   Handy: Panel unten → Rand unten.
 function verdeckterRand() {
-  const r = document.getElementById('panel').getBoundingClientRect();
+  // offsetLeft/offsetTop: Lage ohne laufende Animation (Panel gleitet beim Laden herein)
+  const panel = document.getElementById('panel');
+  const r = { left: panel.offsetLeft, top: panel.offsetTop };
+  let rand;
   if (r.top > window.innerHeight / 3) {
-    return { rechts: 0, unten: window.innerHeight - r.top };
+    rand = { rechts: 0, unten: window.innerHeight - r.top };
+  } else {
+    rand = { rechts: window.innerWidth - r.left, unten: 0 };
   }
-  return { rechts: window.innerWidth - r.left, unten: 0 };
+  // Sehr kleines Fenster: bleibt kaum Karte frei, Panel lieber ignorieren
+  // (sonst zoomt die Karte extrem weit hinein)
+  if (window.innerWidth - rand.rechts < 260) rand.rechts = 0;
+  if (window.innerHeight - rand.unten < 220) rand.unten = 0;
+  return rand;
 }
 
 // "Fotografiert" den Kartenbereich mit html-to-image.
@@ -1496,8 +1505,26 @@ function wendeDarstellungAn() {
   document.getElementById('radius-innen-min').textContent = '≈ ' + deutsch(e.radiusInnen * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN, 1) + ' Min.';
   document.getElementById('radius-aussen-min').textContent = '≈ ' + deutsch(e.radiusAussen * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN, 1) + ' Min.';
 
+  // Mauszeiger über der Karte in der Akzentfarbe
+  setzeKartenCursor(e.farbe);
+
   // Vorhandene Kreise umfärben
   faerbeKreise();
+}
+
+// Eigener Mauszeiger für die Karte: ein feiner Ring mit Punkt in der
+// Mitte (wie ein Zielkreis) – zeigt "hier klicken setzt den Standort".
+// Das Bild wird als kleine SVG-Grafik direkt im Code erzeugt.
+function setzeKartenCursor(farbe) {
+  const svg =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">' +
+      '<circle cx="16" cy="16" r="11" fill="' + farbe + '" fill-opacity="0.12" stroke="#fff" stroke-width="3.5"/>' +
+      '<circle cx="16" cy="16" r="11" fill="none" stroke="' + farbe + '" stroke-width="1.6"/>' +
+      '<circle cx="16" cy="16" r="3" fill="' + farbe + '" stroke="#fff" stroke-width="1.5"/>' +
+    '</svg>';
+  // "16 16" = der Klickpunkt liegt genau in der Mitte; "crosshair" = Ersatz
+  document.documentElement.style.setProperty('--cursor-karte',
+    'url("data:image/svg+xml,' + encodeURIComponent(svg) + '") 16 16, crosshair');
 }
 
 // Einstellung ändern → speichern → anzeigen

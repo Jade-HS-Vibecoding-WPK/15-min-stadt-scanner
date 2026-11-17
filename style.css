@@ -782,6 +782,14 @@ footer a:hover { color: var(--ink); }
 /* ===== 11. Leaflet-Bedienelemente im gleichen Stil ===== */
 .leaflet-container { font-family: var(--sans); }
 
+/* Mauszeiger auf der Karte: Zielkreis in der Akzentfarbe (Bild aus
+   script.js, setzeKartenCursor). Beim Verschieben: geschlossene Hand,
+   über Symbolen und Parks: Zeigefinger (dort gibt es einen Namen). */
+#map.leaflet-grab { cursor: var(--cursor-karte, crosshair); }
+body.leaflet-dragging #map.leaflet-grab { cursor: grabbing; }
+#map .leaflet-interactive,
+#map .poi-marker { cursor: pointer; }
+
 /* Steuerelemente oben links mit Abstand zum Rand */
 .leaflet-top.leaflet-left { top: calc(var(--rand-abstand) - 10px); left: calc(var(--rand-abstand) - 10px); }
 
