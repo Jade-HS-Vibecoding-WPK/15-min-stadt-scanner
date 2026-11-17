@@ -1,5 +1,5 @@
 /* ============================================================
-   Stadt in 15 (15-Minuten-Stadt-Scanner) – Gestaltung („Glas“-Look)
+   Stadt in 15 Minuten (15-Minuten-Stadt-Scanner) – Gestaltung („Glas“-Look)
    Die Karte füllt das ganze Fenster. Panel, Legende und Knöpfe
    schweben darüber wie mattiertes Glas (Unschärfe + Transparenz,
    feiner heller Rand, weicher Schatten, runde Ecken).
@@ -139,7 +139,7 @@ body {
 }
 
 h1 {
-  font-size: 30px;
+  font-size: 27px;
   font-weight: 600;
   line-height: 1.05;
   letter-spacing: -0.025em;

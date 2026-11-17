@@ -1,5 +1,5 @@
 // ============================================================
-// Stadt in 15 – 15-Minuten-Stadt-Scanner für Oldenburg
+// Stadt in 15 Minuten – 15-Minuten-Stadt-Scanner für Oldenburg
 // ============================================================
 
 // Apple Text-Schwarz für Linien und Punkte (gleich wie in style.css)
@@ -1156,7 +1156,7 @@ exportKnopf.addEventListener('click', async function () {
     const datum = new Date().toISOString().slice(0, 10);
     const link = document.createElement('a');
     link.href = bild;
-    link.download = 'stadt-in-15-' + datum + '.png';
+    link.download = 'stadt-in-15-minuten-' + datum + '.png';
     link.click();
 
     exportStatus.textContent = tx('Gespeichert (im Download-Ordner).', 'Saved (in your downloads folder).');
@@ -1217,7 +1217,7 @@ pdfKnopf.addEventListener('click', async function () {
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(26);
     pdf.setTextColor(29, 29, 31);
-    pdf.text('Stadt in 15', x, y + 1);
+    pdf.text(tx('Stadt in 15 Minuten', 'City in 15 Minutes'), x, y + 1);
     y += 8;
 
     // Orange Akzentlinie
@@ -1317,7 +1317,7 @@ pdfKnopf.addEventListener('click', async function () {
     grauerText(pdf, '(ODbL, openstreetmap.org/copyright)', x, yu + 9, false);
 
     // 6) Speichern, z. B. "stadt-scanner-planblatt-2026-11-16.pdf"
-    pdf.save('stadt-in-15-planblatt-' + new Date().toISOString().slice(0, 10) + '.pdf');
+    pdf.save('stadt-in-15-minuten-planblatt-' + new Date().toISOString().slice(0, 10) + '.pdf');
     exportStatus.textContent = tx('Planblatt gespeichert (im Download-Ordner).', 'Plan sheet saved (in your downloads folder).');
   } catch (fehler) {
     exportStatus.textContent = tx('PDF-Export fehlgeschlagen. Bitte warten, bis die Karte ganz geladen ist, und erneut versuchen.', 'PDF export failed. Please wait until the map has fully loaded and try again.');
@@ -1548,7 +1548,7 @@ gpkgKnopf.addEventListener('click', async function () {
     db.close();
     const link = document.createElement('a');
     link.href = URL.createObjectURL(datei);
-    link.download = 'stadt-in-15-' + new Date().toISOString().slice(0, 10) + '.gpkg';
+    link.download = 'stadt-in-15-minuten-' + new Date().toISOString().slice(0, 10) + '.gpkg';
     link.click();
     setTimeout(function () { URL.revokeObjectURL(link.href); }, 10000);
 
@@ -2327,7 +2327,7 @@ baueLegende();
 function wendeSpracheAn() {
   const en = einstellungen.sprache === 'en';
   document.documentElement.lang = einstellungen.sprache;
-  document.title = tx('Stadt in 15 – Standortanalyse Oldenburg', 'Stadt in 15 – 15-minute city site analysis, Oldenburg');
+  document.title = tx('Stadt in 15 Minuten – Standortanalyse Oldenburg', 'City in 15 Minutes – site analysis, Oldenburg');
 
   document.querySelectorAll('[data-en]').forEach(function (el) {
     if (el.dataset.de === undefined) el.dataset.de = el.innerHTML;
