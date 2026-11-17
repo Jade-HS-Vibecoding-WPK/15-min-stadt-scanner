@@ -206,8 +206,9 @@ h1 {
 #suche-status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ===== 5. Ergebnis-Block: die Bewertung im Mittelpunkt ===== */
-/* Die Bewertung liegt auf einer helleren Glas-Kachel */
-.ergebnis {
+/* Bewertung (01) und Erreichbarkeit (02) liegen auf helleren Glas-Kacheln */
+.ergebnis,
+.kachel {
   padding: 10px 14px 10px 16px;
   border-radius: 18px;
   background: var(--glas-hell);
@@ -322,7 +323,12 @@ h1 {
   grid-template-rows: 1fr;
   transition: grid-template-rows 0.45s var(--weich), opacity 0.3s;
 }
-.weitere-innen { overflow: hidden; min-height: 0; }
+.weitere-innen {
+  overflow: hidden;
+  min-height: 0;
+  margin: 0 -24px;      /* etwas breiter als der Inhalt, damit der */
+  padding: 0 24px 6px;  /* Schatten der Kachel nicht abgeschnitten wird */
+}
 .fokus .weitere { grid-template-rows: 0fr; opacity: 0; }
 
 /* Nur für Screenreader sichtbar (z. B. Beschriftung der Suche) */
@@ -349,6 +355,7 @@ h1 {
 .auf-unter .mono { font-size: 10.5px; }
 
 /* ===== Zeitstrahl "02 Erreichbarkeit zu Fuß" ===== */
+.kachel { margin-top: 12px; }   /* Abstand zur Kachel 01 */
 .zeitstrahl { padding-top: 2px; }
 
 /* Fläche mit den zwei Zonen (= innerer / äußerer Kreis) im Hintergrund */
@@ -535,64 +542,184 @@ h1 {
   border-top: 1px solid var(--linie);
 }
 
-/* --- Darstellung (aufklappbar) --- */
-#darstellung summary {
-  cursor: pointer;
-  list-style: none;
-  margin-bottom: 0;
-}
-#darstellung summary::-webkit-details-marker { display: none; }
-#darstellung summary::after { content: '  +'; }
-#darstellung[open] summary::after { content: '  –'; }
-#darstellung summary:hover { color: var(--ink); }
-#darstellung[open] { margin-bottom: 12px; }
-#darstellung[open] summary { margin-bottom: 8px; }
-
-.einstellung {
+/* --- Knopf "Darstellung anpassen" (öffnet das Glas-Fenster) --- */
+#darstellung-knopf {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--hair);
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--glas-rand);
+  border-radius: 12px;
+  background: var(--glas-hell);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.25s var(--feder);
 }
-.einstellung:first-of-type { border-top: 1px solid var(--hair); }
-.einstellung-name { width: 88px; flex-shrink: 0; color: var(--grey); }
+#darstellung-knopf:hover { background: #fff; }
+#darstellung-knopf:active { transform: scale(0.98); }
+#darstellung-knopf[aria-expanded="true"] { background: #fff; box-shadow: 0 0 0 2px var(--accent); }
+.knopf-symbol { width: 16px; height: 16px; fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linecap: round; }
+.knopf-text { flex: 1; }
+.knopf-farbe { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+.knopf-pfeil { color: var(--grey); font-size: 16px; line-height: 1; }
 
-.farb-zeile { display: flex; gap: 6px; align-items: center; }
+/* --- Das Glas-Fenster selbst --- */
+.glas-fenster {
+  position: fixed;
+  right: calc(340px + var(--rand-abstand) * 2);   /* links neben dem Panel */
+  bottom: var(--rand-abstand);
+  z-index: 1002;
+  width: 300px;
+  padding: 16px 18px 14px;
+  border-radius: var(--radius);
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.2)), var(--glas);
+  -webkit-backdrop-filter: var(--glas-filter);
+  backdrop-filter: var(--glas-filter);
+  border: 1px solid var(--glas-rand);
+  box-shadow: var(--glas-schatten);
+  animation: fenster-auf 0.35s var(--feder) both;
+  transform-origin: 100% 90%;
+}
+.glas-fenster[hidden] { display: none; }
+@keyframes fenster-auf { from { opacity: 0; transform: scale(0.92) translateX(10px); } }
 
+.fenster-kopf { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.fenster-kopf strong { font-size: 15px; font-weight: 600; }
+.fenster-zu {
+  width: 24px; height: 24px;
+  border: none; border-radius: 50%;
+  background: rgba(60, 60, 67, 0.1);
+  font-size: 11px; color: var(--grey);
+  cursor: pointer;
+}
+.fenster-zu:hover { background: rgba(60, 60, 67, 0.18); color: var(--ink); }
+
+.fenster-gruppe { padding: 10px 0; border-top: 1px solid var(--hair); }
+.gruppen-titel {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.gruppen-info { font-size: 11px; font-weight: 400; color: var(--grey); }
+.gruppen-wert { margin-left: auto; font-size: 11px; font-weight: 500; color: var(--accent); }
+
+/* Kartenstil als Umschalter mit kleinen Vorschau-Feldern */
+.segment {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 3px;
+  border-radius: 11px;
+  background: rgba(60, 60, 67, 0.08);
+}
+.stil-knopf {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 4px 5px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.stil-knopf.aktiv { background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12); font-weight: 600; }
+.stil-vorschau {
+  width: 100%;
+  height: 22px;
+  border-radius: 5px;
+  border: 1px solid rgba(60, 60, 67, 0.15);
+}
+.vorschau-grau   { background: linear-gradient(135deg, #f4f4f4 40%, #dcdcdc 40% 55%, #f0f0f0 55%); }
+.vorschau-farbig { background: linear-gradient(135deg, #f2efe9 40%, #aad3a0 40% 55%, #f7d9a8 55%); }
+.vorschau-dunkel { background: linear-gradient(135deg, #2a2a2c 40%, #49494c 40% 55%, #333 55%); }
+
+/* Akzentfarben als runde Felder */
+.farb-zeile { display: flex; gap: 10px; align-items: center; }
 .farbfeld {
-  width: 18px;
-  height: 18px;
+  width: 24px;
+  height: 24px;
   border: none;
   border-radius: 50%;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
   cursor: pointer;
 }
-.farbfeld.aktiv { outline: 1.5px solid var(--ink); outline-offset: 2px; }
+.farbfeld.aktiv { outline: 2px solid var(--ink); outline-offset: 2px; }
 
-#farbe-frei {
-  width: 22px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  background: none;
+/* Eigene Farbe: Regenbogen-Kreis, darin der (unsichtbare) Farbwähler */
+.farbe-eigen {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: conic-gradient(#ff3b30, #ff9500, #ffcc00, #34c759, #30b0c7, #007aff, #af52de, #ff3b30);
   cursor: pointer;
 }
+#farbe-frei { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 
-#kartenstil,
-.einstellung input[type="number"] {
-  font: inherit;
-  padding: 2px 0;
-  border: none;
-  border-bottom: 1px solid var(--linie);
-  background: transparent;
-  color: var(--ink);
+/* Schieberegler */
+#deckkraft { width: 100%; accent-color: var(--accent); }
+
+/* Radien: Name · [− 400 +] · Gehzeit */
+.radius-zeile { display: flex; align-items: center; gap: 8px; padding: 3px 0; }
+.radius-name { display: flex; align-items: center; width: 62px; font-size: 12px; }
+.stepper {
+  display: flex;
+  align-items: center;
+  border-radius: 9px;
+  background: rgba(60, 60, 67, 0.08);
 }
-#kartenstil { flex: 1; }
-.einstellung input[type="number"] { width: 56px; font-family: var(--mono); text-align: right; }
+.stepper-knopf {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 9px;
+  background: none;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.2s var(--feder);
+}
+.stepper-knopf:hover { background: rgba(255, 255, 255, 0.8); }
+.stepper-knopf:active { transform: scale(0.88); }
+.stepper input {
+  width: 48px;
+  border: none;
+  background: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: center;
+  color: var(--ink);
+  -moz-appearance: textfield;
+}
+.stepper input::-webkit-inner-spin-button,
+.stepper input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.radius-min { margin-left: auto; font-size: 11px; color: var(--grey); }
 
-#deckkraft { flex: 1; accent-color: var(--accent); }
-#deckkraft-wert { width: 36px; font-family: var(--mono); text-align: right; }
+.fenster-fuss {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-top: 10px;
+  border-top: 1px solid var(--hair);
+  font-size: 10.5px;
+  color: var(--grey);
+}
+.fenster-fuss .link-knopf { margin-top: 0; white-space: nowrap; }
 
 .link-knopf {
   margin-top: 6px;
@@ -792,16 +919,6 @@ path.weg-ziel  { animation: einblenden 0.4s var(--weich) 0.1s both; }
 .tabelle tbody tr { transition: background 0.2s; }
 .tabelle tbody tr:hover { background: rgba(255, 255, 255, 0.5); }
 
-/* "Darstellung" klappt weich auf statt zu springen (Chrome/Edge;
-   andere Browser klappen einfach ohne Animation auf) */
-:root { interpolate-size: allow-keywords; }
-#darstellung::details-content {
-  block-size: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition: block-size 0.4s var(--weich), opacity 0.3s, content-visibility 0.4s allow-discrete;
-}
-#darstellung[open]::details-content { block-size: auto; opacity: 1; }
 
 /* Beim Export keine Animationen (sonst wären Symbole unsichtbar im Bild) */
 .export-modus *,
@@ -824,6 +941,7 @@ path.weg-ziel  { animation: einblenden 0.4s var(--weich) 0.1s both; }
     max-height: 55vh;
   }
   .legend { display: none; }
+  .glas-fenster { left: 10px; right: 10px; bottom: 10px; width: auto; z-index: 1003; }
   .leaflet-right { right: 0; }
   .leaflet-bottom.leaflet-right { bottom: calc(55vh + 20px); }
 }

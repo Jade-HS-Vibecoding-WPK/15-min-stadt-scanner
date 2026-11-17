@@ -89,9 +89,11 @@
 
       <!-- 2) Erreichbarkeit: Zeitstrahl 0–15 Min. mit dem nächsten Ziel
               je Kategorie; die farbigen Zonen sind die beiden Kreise -->
-      <p class="label abschnitt"><span class="nr">02</span>Erreichbarkeit zu Fuß</p>
-      <div class="zeitstrahl" id="zeitstrahl"><!-- wird von script.js gezeichnet --></div>
-      <p class="zs-kreise mono" id="vergleich-zeilen"><!-- Kreise: Gehzeit + Fläche --></p>
+      <div class="kachel">
+        <p class="label"><span class="nr">02</span>Erreichbarkeit zu Fuß</p>
+        <div class="zeitstrahl" id="zeitstrahl"><!-- wird von script.js gezeichnet --></div>
+        <p class="zs-kreise mono" id="vergleich-zeilen"><!-- Kreise: Gehzeit + Fläche --></p>
+      </div>
 
       <!-- Annahmen und Datenquelle als eine ruhige Fußnote -->
       <p class="anmerkung"><span id="vergleich-annahme"></span> <span id="infra-status"></span></p>
@@ -102,47 +104,15 @@
     <!-- Unterer Block: Darstellung, Export, Namensnennung -->
     <div id="unten">
 
-    <!-- Darstellung: aufklappbar (<details>), damit das Panel aufgeräumt bleibt -->
-    <details id="darstellung">
-      <summary class="label">Darstellung</summary>
-
-      <div class="einstellung">
-        <span class="einstellung-name">Akzentfarbe</span>
-        <div class="farb-zeile">
-          <button type="button" class="farbfeld" data-farbe="#007AFF" title="Blau" style="background:#007AFF"></button>
-          <button type="button" class="farbfeld" data-farbe="#FF3B30" title="Rot" style="background:#FF3B30"></button>
-          <button type="button" class="farbfeld" data-farbe="#5856D6" title="Indigo" style="background:#5856D6"></button>
-          <button type="button" class="farbfeld" data-farbe="#1D1D1F" title="Graphit" style="background:#1D1D1F"></button>
-          <input type="color" id="farbe-frei" title="Eigene Farbe wählen">
-        </div>
-      </div>
-
-      <div class="einstellung">
-        <label class="einstellung-name" for="kartenstil">Kartenstil</label>
-        <select id="kartenstil">
-          <option value="grau">Hell-grau</option>
-          <option value="farbig">Farbig</option>
-          <option value="dunkel">Dunkel</option>
-        </select>
-      </div>
-
-      <div class="einstellung">
-        <label class="einstellung-name" for="deckkraft">Füllung innen</label>
-        <input type="range" id="deckkraft" min="0" max="50" step="5">
-        <span id="deckkraft-wert">10 %</span>
-      </div>
-
-      <div class="einstellung">
-        <span class="einstellung-name">Radien</span>
-        <input type="number" id="radius-innen" min="100" max="1500" step="50" aria-label="Innerer Radius in Metern">
-        <span>/</span>
-        <input type="number" id="radius-aussen" min="100" max="1500" step="50" aria-label="Äußerer Radius in Metern">
-        <span>m</span>
-      </div>
-
-      <p class="anmerkung" id="darstellung-status"></p>
-      <button type="button" id="zuruecksetzen" class="link-knopf">Standard wiederherstellen</button>
-    </details>
+    <!-- Darstellung: ein klarer Knopf öffnet ein Glas-Fenster neben dem Panel -->
+    <button type="button" id="darstellung-knopf" aria-expanded="false" aria-controls="darstellung">
+      <svg class="knopf-symbol" viewBox="0 0 16 16" aria-hidden="true">
+        <path d="M2 4h7M13 4h1M2 12h1M7 12h7" /><circle cx="11" cy="4" r="2" /><circle cx="5" cy="12" r="2" />
+      </svg>
+      <span class="knopf-text">Darstellung anpassen</span>
+      <span class="knopf-farbe" aria-hidden="true"></span>
+      <span class="knopf-pfeil" aria-hidden="true">›</span>
+    </button>
 
     <!-- Export: drei ruhige Text-Knöpfe in einer Zeile -->
     <section id="export">
@@ -159,6 +129,71 @@
     </footer>
     </div>
   </aside>
+
+
+  <!-- Darstellungs-Fenster (schwebt links neben dem Panel, wie das
+       Kontrollzentrum am Mac). Alles wirkt sofort und wird gespeichert. -->
+  <div id="darstellung" class="glas-fenster" role="dialog" aria-label="Darstellung" hidden>
+    <div class="fenster-kopf">
+      <strong>Darstellung</strong>
+      <button type="button" id="darstellung-zu" class="fenster-zu" aria-label="Schließen">✕</button>
+    </div>
+
+    <section class="fenster-gruppe">
+      <p class="gruppen-titel">Kartenstil</p>
+      <div class="segment" role="radiogroup" aria-label="Kartenstil">
+        <button type="button" role="radio" class="stil-knopf" data-stil="grau"><span class="stil-vorschau vorschau-grau"></span>Hell</button>
+        <button type="button" role="radio" class="stil-knopf" data-stil="farbig"><span class="stil-vorschau vorschau-farbig"></span>Farbig</button>
+        <button type="button" role="radio" class="stil-knopf" data-stil="dunkel"><span class="stil-vorschau vorschau-dunkel"></span>Dunkel</button>
+      </div>
+    </section>
+
+    <section class="fenster-gruppe">
+      <p class="gruppen-titel">Akzentfarbe <span class="gruppen-info">Kreise, Bewertung, Knöpfe</span></p>
+      <div class="farb-zeile">
+        <button type="button" class="farbfeld" data-farbe="#007AFF" title="Blau" style="background:#007AFF"></button>
+        <button type="button" class="farbfeld" data-farbe="#FF3B30" title="Rot" style="background:#FF3B30"></button>
+        <button type="button" class="farbfeld" data-farbe="#5856D6" title="Indigo" style="background:#5856D6"></button>
+        <button type="button" class="farbfeld" data-farbe="#1D1D1F" title="Graphit" style="background:#1D1D1F"></button>
+        <label class="farbe-eigen" title="Eigene Farbe wählen">
+          <input type="color" id="farbe-frei" aria-label="Eigene Farbe wählen">
+        </label>
+      </div>
+    </section>
+
+    <section class="fenster-gruppe">
+      <p class="gruppen-titel">Füllung des inneren Kreises <span class="gruppen-wert mono" id="deckkraft-wert">12 %</span></p>
+      <input type="range" id="deckkraft" min="0" max="50" step="5" aria-label="Füllung des inneren Kreises in Prozent">
+    </section>
+
+    <section class="fenster-gruppe">
+      <p class="gruppen-titel">Radien <span class="gruppen-info">in 50-m-Schritten</span></p>
+      <div class="radius-zeile">
+        <span class="radius-name"><span class="zs-kreis zs-kreis-innen"></span>Innen</span>
+        <span class="stepper">
+          <button type="button" class="stepper-knopf" data-ziel="radius-innen" data-schritt="-50" aria-label="Innerer Radius kleiner">−</button>
+          <input type="number" id="radius-innen" min="100" max="1500" step="50" aria-label="Innerer Radius in Metern">
+          <button type="button" class="stepper-knopf" data-ziel="radius-innen" data-schritt="50" aria-label="Innerer Radius größer">+</button>
+        </span>
+        <span class="radius-min mono" id="radius-innen-min"></span>
+      </div>
+      <div class="radius-zeile">
+        <span class="radius-name"><span class="zs-kreis zs-kreis-aussen"></span>Außen</span>
+        <span class="stepper">
+          <button type="button" class="stepper-knopf" data-ziel="radius-aussen" data-schritt="-50" aria-label="Äußerer Radius kleiner">−</button>
+          <input type="number" id="radius-aussen" min="100" max="1500" step="50" aria-label="Äußerer Radius in Metern">
+          <button type="button" class="stepper-knopf" data-ziel="radius-aussen" data-schritt="50" aria-label="Äußerer Radius größer">+</button>
+        </span>
+        <span class="radius-min mono" id="radius-aussen-min"></span>
+      </div>
+      <p class="anmerkung" id="darstellung-status"></p>
+    </section>
+
+    <div class="fenster-fuss">
+      <button type="button" id="zuruecksetzen" class="link-knopf">Zurücksetzen</button>
+      <span>Änderungen werden gespeichert</span>
+    </div>
+  </div>
 
   <!-- Leaflet-Programmcode, danach unser eigenes Skript -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>

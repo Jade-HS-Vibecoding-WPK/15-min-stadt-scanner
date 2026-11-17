@@ -1483,11 +1483,18 @@ function wendeDarstellungAn() {
   document.querySelectorAll('.farbfeld').forEach(function (feld) {
     feld.classList.toggle('aktiv', feld.dataset.farbe.toLowerCase() === e.farbe.toLowerCase());
   });
-  document.getElementById('kartenstil').value = e.kartenstil;
+  document.querySelectorAll('.stil-knopf').forEach(function (knopf) {
+    const an = knopf.dataset.stil === e.kartenstil;
+    knopf.classList.toggle('aktiv', an);
+    knopf.setAttribute('aria-checked', an ? 'true' : 'false');
+  });
   document.getElementById('deckkraft').value = Math.round(e.deckkraft * 100);
   document.getElementById('deckkraft-wert').textContent = Math.round(e.deckkraft * 100) + ' %';
   document.getElementById('radius-innen').value = e.radiusInnen;
   document.getElementById('radius-aussen').value = e.radiusAussen;
+  // Gehzeit neben den Radien (mit Umwegfaktor, wie im Zeitstrahl)
+  document.getElementById('radius-innen-min').textContent = '≈ ' + deutsch(e.radiusInnen * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN, 1) + ' Min.';
+  document.getElementById('radius-aussen-min').textContent = '≈ ' + deutsch(e.radiusAussen * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN, 1) + ' Min.';
 
   // Vorhandene Kreise umfärben
   faerbeKreise();
@@ -1510,9 +1517,37 @@ document.getElementById('farbe-frei').addEventListener('input', function (event)
   aendere({ farbe: event.target.value });
 });
 
-// Kartenstil
-document.getElementById('kartenstil').addEventListener('change', function (event) {
-  aendere({ kartenstil: event.target.value });
+// Kartenstil: drei Knöpfe nebeneinander (wie ein Umschalter bei Apple)
+document.querySelectorAll('.stil-knopf').forEach(function (knopf) {
+  knopf.addEventListener('click', function () { aendere({ kartenstil: knopf.dataset.stil }); });
+});
+
+// Darstellungs-Fenster öffnen / schließen
+const darstellungFenster = document.getElementById('darstellung');
+const darstellungKnopf = document.getElementById('darstellung-knopf');
+function zeigeDarstellung(offen) {
+  darstellungFenster.hidden = !offen;
+  darstellungKnopf.setAttribute('aria-expanded', offen ? 'true' : 'false');
+}
+darstellungKnopf.addEventListener('click', function () { zeigeDarstellung(darstellungFenster.hidden); });
+document.getElementById('darstellung-zu').addEventListener('click', function () { zeigeDarstellung(false); });
+// Esc-Taste oder Klick daneben schließt das Fenster
+document.addEventListener('keydown', function (event) {
+  if (event.key === 'Escape') zeigeDarstellung(false);
+});
+document.addEventListener('pointerdown', function (event) {
+  if (darstellungFenster.hidden) return;
+  if (darstellungFenster.contains(event.target) || darstellungKnopf.contains(event.target)) return;
+  zeigeDarstellung(false);
+});
+
+// Plus/Minus-Knöpfe bei den Radien (50-m-Schritte)
+document.querySelectorAll('.stepper-knopf').forEach(function (knopf) {
+  knopf.addEventListener('click', function () {
+    const feld = document.getElementById(knopf.dataset.ziel);
+    feld.value = Math.min(1500, Math.max(100, Number(feld.value) + Number(knopf.dataset.schritt)));
+    radienGeaendert();
+  });
 });
 
 // Füllung innen (Schieberegler 0–50 %)
@@ -1533,9 +1568,12 @@ function radienGeaendert() {
   meldung.textContent = '';
   aendere({ radiusInnen: innen, radiusAussen: aussen });
 
-  // Gibt es schon einen Standort? Dann neu analysieren (neue Kreise, neue Zählung)
-  if (letzterPunkt) analysiereStandort(letzterPunkt);
+  // Gibt es schon einen Standort? Dann neu analysieren (neue Kreise, neue Zählung).
+  // Kurz warten, falls mehrmals schnell auf +/− geklickt wird.
+  clearTimeout(radienTimer);
+  if (letzterPunkt) radienTimer = setTimeout(function () { analysiereStandort(letzterPunkt); }, 350);
 }
+let radienTimer = null;
 document.getElementById('radius-innen').addEventListener('change', radienGeaendert);
 document.getElementById('radius-aussen').addEventListener('change', radienGeaendert);
 
