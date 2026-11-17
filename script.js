@@ -2,8 +2,8 @@
 // 15-Minuten-Stadt-Scanner
 // ============================================================
 
-// Tiefschwarz für Linien und Punkte (gleich wie in style.css)
-const INK = '#111111';
+// Apple Text-Schwarz für Linien und Punkte (gleich wie in style.css)
+const INK = '#1D1D1F';
 
 // ------------------------------------------------------------
 // Einstellungen (im Bereich "Darstellung" änderbar).
@@ -11,13 +11,13 @@ const INK = '#111111';
 // nächsten Besuch wieder da.
 // ------------------------------------------------------------
 const STANDARD = {
-  farbe: '#FF4F00',        // Akzentfarbe: International Orange
+  farbe: '#007AFF',        // Akzentfarbe: Apple Systemblau
   kartenstil: 'grau',      // 'grau', 'farbig' oder 'dunkel'
-  deckkraft: 0.1,          // Füllung des inneren Kreises (0 = nur Linie)
+  deckkraft: 0.12,         // Füllung des inneren Kreises (0 = nur Linie)
   radiusInnen: 400,        // Meter (≈ 5 Min.)
   radiusAussen: 800        // Meter (≈ 10 Min.)
 };
-const SPEICHER_NAME = 'stadtScannerEinstellungen';
+const SPEICHER_NAME = 'stadtScannerEinstellungen-v3';   // v3: Apple-Farben
 let einstellungen = ladeEinstellungen();
 
 function ladeEinstellungen() {
@@ -53,16 +53,20 @@ const GEHTEMPO_M_PRO_MIN = GEHTEMPO_KMH * 1000 / 60;  // = 80 m pro Minute
 
 // Kategorien der Infrastruktur (Daten: daten/oldenburg-osm.js)
 //   form: wie die Orte auf der Karte und in der Legende aussehen
+//   farbe: Apple-Systemfarbe (Füllung), kontur: weißer Rand (wie Apple Karten)
 const KATEGORIEN = [
-  { id: 'oepnv',      name: 'ÖPNV-Haltepunkte',     form: 'kreis' },
-  { id: 'versorgung', name: 'Supermärkte & Bäcker', form: 'quadrat' },
-  { id: 'bildung',    name: 'Kitas & Schulen',      form: 'dreieck' },
-  { id: 'gruen',      name: 'Parks',                form: 'flaeche' }
+  { id: 'oepnv',      name: 'ÖPNV-Haltepunkte',     form: 'kreis',   farbe: '#30B0C7', kontur: '#FFFFFF' },
+  { id: 'versorgung', name: 'Supermärkte & Bäcker', form: 'quadrat', farbe: '#FF9500', kontur: '#FFFFFF' },
+  { id: 'bildung',    name: 'Kitas & Schulen',      form: 'dreieck', farbe: '#AF52DE', kontur: '#FFFFFF' },
+  { id: 'gruen',      name: 'Parks',                form: 'flaeche', farbe: '#34C759', kontur: '#FFFFFF' }
 ];
 
 // 1) Karte erzeugen und auf Oldenburg zentrieren
 //    [Breitengrad, Längengrad], Zoomstufe
 const map = L.map('map').setView([53.1435, 8.2146], 14);
+
+// Namensnennung ohne den Zusatz "Leaflet" + Flagge (ruhiger); OSM bleibt sichtbar
+map.attributionControl.setPrefix(false);
 
 // 2) Hintergrundkarte laden: Standard-Kacheln von OpenStreetMap
 //    (kostenlos, ohne API-Key). In style.css machen wir sie über die
@@ -101,18 +105,116 @@ function faerbeKreise() {
   if (kreisAussen) kreisAussen.setStyle({ color: farbe });
   if (kreisInnen) kreisInnen.setStyle({ color: farbe, fillColor: farbe, fillOpacity: einstellungen.deckkraft });
   if (standortMarker) standortMarker.setStyle({ fillColor: farbe });
-
-  // Infrastruktur: auf dunkler Karte hell, sonst schwarz
-  document.getElementById('map').style.setProperty('--poi-farbe', poiFarbe());
-  analyse.eachLayer(function (ebene) {
-    if (ebene.options.className === 'park') {
-      ebene.setStyle({ fillColor: poiFarbe(), fillOpacity: einstellungen.kartenstil === 'dunkel' ? 0.25 : 0.15 });
-    }
-  });
 }
 
-function poiFarbe() {
-  return einstellungen.kartenstil === 'dunkel' ? '#F8F8F6' : INK;
+// Kleines SVG-Symbol einer Kategorie: kräftige Füllung + weißer Rand.
+//   Wird auf der Karte, in der Legende und in der Tabelle verwendet.
+function symbolSvg(katId) {
+  const kat = KATEGORIEN.find(function (k) { return k.id === katId; });
+  const stil = 'fill="' + kat.farbe + '" stroke="' + kat.kontur + '" stroke-width="1"';
+  let form;
+  if (kat.form === 'kreis')   form = '<circle cx="5.5" cy="5.5" r="4.5" ' + stil + '/>';
+  if (kat.form === 'quadrat') form = '<rect x="1.5" y="1.5" width="8" height="8" ' + stil + '/>';
+  if (kat.form === 'dreieck') form = '<polygon points="5.5,1 10,10 1,10" ' + stil + ' stroke-linejoin="round"/>';
+  if (kat.form === 'flaeche') {
+    return '<svg class="sym sym-flaeche" viewBox="0 0 14 11" aria-hidden="true">' +
+           '<rect x="0.5" y="1.5" width="13" height="8" ' + stil + '/></svg>';
+  }
+  return '<svg class="sym" viewBox="0 0 11 11" aria-hidden="true">' + form + '</svg>';
+}
+
+// Platzhalter in Legende und Tabelle (data-symbol="…") mit Symbolen füllen
+document.querySelectorAll('[data-symbol]').forEach(function (platz) {
+  platz.outerHTML = symbolSvg(platz.dataset.symbol);
+});
+
+// ------------------------------------------------------------
+// Animationen (wie bei Apple: weich auslaufend, leicht nachfedernd)
+// Wer im Betriebssystem "Bewegung reduzieren" eingestellt hat,
+// bekommt keine Animationen – das ist Apples eigene Regel.
+// ------------------------------------------------------------
+const WENIG_BEWEGUNG = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Feder-Kurve: t läuft von 0 bis 1, das Ergebnis schießt kurz über 1
+// hinaus (≈ 4 %) und federt dann zurück – wie ein Gummiband.
+function federKurve(t) {
+  const c = 1.1;
+  return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2);
+}
+
+// Weiche Kurve ohne Überschwingen (schnell los, sanft ankommen)
+function weichKurve(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+// Lässt innerer Kreis, äußerer Kreis und Standort-Punkt nacheinander
+// aufgehen. Jeder Eintrag: [Objekt, Zielgröße, Verzögerung in ms]
+let kreisAnimation = null;
+let kreiseWachsen = false;   // läuft gerade eine Kreis-Animation?
+let analyseNummer = 0;       // zählt jede Analyse (alte Animationen erkennen)
+let kameraFliegt = false;    // fliegt die Karte gerade zum Standort?
+
+// Für den Export: warten, bis Kreise und Kameraflug fertig sind
+// (höchstens 2 Sekunden), damit nichts "halb fertig" im Bild landet
+async function warteAufAnimationen() {
+  for (let i = 0; i < 40 && (kreiseWachsen || kameraFliegt); i++) {
+    await new Promise(function (r) { setTimeout(r, 50); });
+  }
+}
+
+// Kreise + Punkt ganz klein machen (unsichtbar), bis die Karte steht
+function kreiseVerstecken() {
+  cancelAnimationFrame(kreisAnimation);
+  [standortMarker, kreisInnen, kreisAussen].forEach(function (k) { k.setRadius(0.01); });
+  kreiseWachsen = true;
+}
+
+function lasseKreiseWachsen() {
+  cancelAnimationFrame(kreisAnimation);
+  if (WENIG_BEWEGUNG) return;
+
+  const ablauf = [
+    [standortMarker, 6, 0],
+    [kreisInnen, einstellungen.radiusInnen, 60],
+    [kreisAussen, einstellungen.radiusAussen, 160]
+  ];
+  const DAUER = 700;
+  kreiseWachsen = true;
+
+  const start = performance.now();
+  function schritt(jetzt) {
+    let fertig = true;
+    ablauf.forEach(function (a) {
+      const t = Math.min(1, Math.max(0, (jetzt - start - a[2]) / DAUER));
+      if (t < 1) fertig = false;
+      a[0].setRadius(Math.max(0.01, a[1] * federKurve(t)));
+    });
+    if (!fertig) kreisAnimation = requestAnimationFrame(schritt);
+    else kreiseWachsen = false;
+  }
+  kreisAnimation = requestAnimationFrame(schritt);
+}
+
+// Zahl hochzählen lassen, z. B. "0/8" → "7/8"
+let zahlAnimation = null;
+function zaehleHoch(element, ziel, nachsatz) {
+  cancelAnimationFrame(zahlAnimation);
+  if (WENIG_BEWEGUNG) { element.textContent = ziel + nachsatz; return; }
+  const start = performance.now();
+  const DAUER = 650;
+  function schritt(jetzt) {
+    const t = Math.min(1, (jetzt - start) / DAUER);
+    element.textContent = Math.round(ziel * weichKurve(t)) + nachsatz;
+    if (t < 1) zahlAnimation = requestAnimationFrame(schritt);
+  }
+  zahlAnimation = requestAnimationFrame(schritt);
+}
+
+// CSS-Animation erneut abspielen: Klasse kurz entfernen und wieder setzen
+function spieleAb(element, klasse) {
+  element.classList.remove(klasse);
+  void element.offsetWidth;   // Browser "vergisst" die alte Animation
+  element.classList.add(klasse);
 }
 
 // 5) Kern-Funktion: zeichnet Marker + Kreise und füllt das Panel.
@@ -147,8 +249,47 @@ function analysiereStandort(punkt) {
 
   faerbeKreise();   // Farbe + Deckkraft aus den Einstellungen anwenden
 
-  // Karte so zoomen, dass der große Kreis ganz zu sehen ist
-  map.fitBounds(kreisAussen.getBounds(), { padding: [40, 40] });
+  // Karte so zoomen, dass der große Kreis ganz zu sehen ist –
+  // im freien Teil der Karte, nicht hinter dem Glas-Panel
+  const frei = verdeckterRand();
+  const ausschnitt = {
+    paddingTopLeft: [40, 40],
+    paddingBottomRight: [40 + frei.rechts, 40 + frei.unten]
+  };
+  const ziel = kreisAussen.getBounds();
+  const nummer = ++analyseNummer;
+
+  if (WENIG_BEWEGUNG) {
+    map.fitBounds(ziel, ausschnitt);
+  } else {
+    // Reihenfolge wie bei Apple: ERST bewegt sich die Karte, DANN wachsen
+    // die Kreise und ploppen die Symbole auf. Beides gleichzeitig ruckelt,
+    // weil Leaflet die Kreise während der Kamerafahrt nur "gestreckt"
+    // anzeigt und erst am Ende neu zeichnet.
+    kreiseVerstecken();
+    map.getContainer().classList.add('karte-bewegt');   // Symbole kurz ausblenden
+    kameraFliegt = true;
+
+    let gestartet = false;
+    const losGehts = function () {
+      // nur, wenn inzwischen nicht schon ein neuer Standort gewählt wurde
+      if (gestartet || nummer !== analyseNummer) return;
+      gestartet = true;
+      kameraFliegt = false;
+      map.getContainer().classList.remove('karte-bewegt');
+      lasseKreiseWachsen();
+    };
+
+    map.stop();                     // laufende Kamerafahrt beenden
+    map.once('moveend', losGehts);  // wenn die Karte steht → los
+    setTimeout(losGehts, 1200);     // Sicherheitsnetz
+
+    // Weiches Schwenken/Zoomen (Leaflet-eigene, ruckelfreie Animation)
+    ausschnitt.animate = true;
+    ausschnitt.duration = 0.55;                  // Sekunden
+    ausschnitt.pan = { easeLinearity: 0.15 };    // sanft abbremsen
+    map.fitBounds(ziel, ausschnitt);
+  }
 
   // Kennzahlen im Side-Panel aktualisieren
   zeigeKennzahlen(punkt);
@@ -171,6 +312,7 @@ function zaehleInfrastruktur(punkt) {
   const rAussen = einstellungen.radiusAussen;
   const status = document.getElementById('infra-status');
   letzteOrte = null;
+  letzteBewertung = null;
 
   // Daten nicht geladen oder Standort außerhalb des Datengebiets?
   if (!window.OSM_DATEN || !imDatengebiet(punkt)) {
@@ -178,6 +320,7 @@ function zaehleInfrastruktur(punkt) {
       document.getElementById('anz-' + kat.id + '-innen').textContent = '–';
       document.getElementById('anz-' + kat.id + '-aussen').textContent = '–';
     });
+    zeigeBewertung(null);
     status.textContent = window.OSM_DATEN
       ? 'Außerhalb des Datengebiets – Infrastruktur nur für Oldenburg und Umgebung verfügbar.'
       : 'Infrastruktur-Daten konnten nicht geladen werden.';
@@ -209,11 +352,67 @@ function zaehleInfrastruktur(punkt) {
     document.getElementById('anz-' + kat.id + '-innen').textContent = zaehler[kat.id].innen;
     document.getElementById('anz-' + kat.id + '-aussen').textContent = zaehler[kat.id].aussen;
   });
-  status.textContent = 'OSM-Datenstand ' + OSM_DATEN.datenstand + ' · Parks: Rand im Radius';
+  status.textContent = 'OSM-Stand ' + OSM_DATEN.datenstand + '. Parks zählen ab ihrem Rand.';
 
   letzteOrte = gefunden;
+  letzteBewertung = berechneBewertung(zaehler);
+  zeigeBewertung(letzteBewertung);
   faerbeKreise();
   if (standortMarker) standortMarker.bringToFront();
+}
+
+// ------------------------------------------------------------
+// 15-Minuten-Bewertung
+//   Pro Kategorie:  2 Punkte = mind. ein Ziel im inneren Kreis (≈ 5 Min.)
+//                   1 Punkt  = erst im äußeren Kreis (≈ 10 Min.)
+//                   0 Punkte = gar nicht im Umkreis
+//   4 Kategorien × 2 Punkte = höchstens 8 Punkte (= 100 %)
+// ------------------------------------------------------------
+let letzteBewertung = null;
+
+const BEWERTUNGS_STUFEN = [
+  { ab: 0.875, text: 'sehr gut versorgt' },   // 7–8 Punkte
+  { ab: 0.625, text: 'gut versorgt' },        // 5–6 Punkte
+  { ab: 0.375, text: 'teilweise versorgt' },  // 3–4 Punkte
+  { ab: 0,     text: 'schwach versorgt' }     // 0–2 Punkte
+];
+
+function berechneBewertung(zaehler) {
+  let punkte = 0;
+  const fehlend = [];   // Kategorien ohne Ziel im inneren Kreis
+  KATEGORIEN.forEach(function (kat) {
+    if (zaehler[kat.id].innen > 0) punkte += 2;
+    else if (zaehler[kat.id].aussen > 0) { punkte += 1; fehlend.push(kat.name + ' (erst im äußeren Kreis)'); }
+    else fehlend.push(kat.name + ' (fehlt ganz)');
+  });
+  const maximum = KATEGORIEN.length * 2;
+  const anteil = punkte / maximum;
+  return {
+    punkte: punkte,
+    maximum: maximum,
+    prozent: Math.round(anteil * 100),
+    stufe: BEWERTUNGS_STUFEN.find(function (s) { return anteil >= s.ab; }).text,
+    fehlend: fehlend
+  };
+}
+
+// Bewertung oben im Ergebnis-Block anzeigen (große Zahl + Stufe)
+function zeigeBewertung(b) {
+  const zahl = document.getElementById('bewertung');
+  const stufe = document.getElementById('bewertung-stufe');
+  const block = zahl.closest('.ergebnis');
+  if (!b) {
+    cancelAnimationFrame(zahlAnimation);
+    zahl.textContent = '–';
+    stufe.textContent = 'keine Daten für diesen Ort';
+    block.title = '';
+    return;
+  }
+  zaehleHoch(zahl, b.punkte, '/' + b.maximum);
+  stufe.textContent = b.stufe;
+  block.title = '15-Minuten-Bewertung: ' + b.prozent + ' %\n' +
+    'Je Kategorie 2 Punkte, wenn ein Ziel im inneren Kreis liegt, 1 Punkt im äußeren.' +
+    (b.fehlend.length ? '\nNicht im inneren Kreis: ' + b.fehlend.join(', ') : '');
 }
 
 // Liegt der Punkt im ausgeschnittenen Gebiet? gebiet = [West, Süd, Ost, Nord]
@@ -280,9 +479,10 @@ function zeichneOrt(ort) {
   name.textContent = ort.properties.name || KATEGORIEN.find(function (k) { return k.id === kat; }).name;
 
   if (kat === 'gruen') {
-    // Parks als graue Fläche ohne Rand
+    // Parks als salbeigrüne Fläche mit feiner Kontur
+    const gruen = KATEGORIEN.find(function (k) { return k.id === 'gruen'; });
     L.geoJSON(ort, {
-      style: { stroke: false, fillColor: poiFarbe(), fillOpacity: 0.15, className: 'park' },
+      style: { color: gruen.farbe, weight: 1, fillColor: gruen.farbe, fillOpacity: 0.28, className: 'park' },
       interactive: true
     }).eachLayer(function (ebene) {
       ebene.options.className = 'park';
@@ -292,10 +492,14 @@ function zeichneOrt(ort) {
     return;
   }
 
-  // Punkte als kleine Symbole (Kreis, Quadrat, Dreieck) – siehe style.css
-  const form = KATEGORIEN.find(function (k) { return k.id === kat; }).form;
-  const symbol = L.marker([ort.geometry.coordinates[1], ort.geometry.coordinates[0]], {
-    icon: L.divIcon({ className: 'poi poi-' + form, iconSize: [8, 8] }),
+  // Punkte als kleine farbige Symbole (Kreis, Quadrat, Dreieck)
+  // Verzögerung je nach Entfernung: nahe Orte erscheinen zuerst,
+  // ferne später – wie eine Welle, die sich vom Standort ausbreitet
+  const lage = L.latLng(ort.geometry.coordinates[1], ort.geometry.coordinates[0]);
+  const verzoegerung = 80 + Math.round(450 * Math.min(1, map.distance(letzterPunkt, lage) / einstellungen.radiusAussen));
+  const html = symbolSvg(kat).replace('<svg ', '<svg style="animation-delay:' + verzoegerung + 'ms" ');
+  const symbol = L.marker(lage, {
+    icon: L.divIcon({ className: 'poi-marker', html: html, iconSize: [11, 11] }),
     keyboard: false
   });
   symbol.bindTooltip(name, { direction: 'top' });
@@ -377,13 +581,15 @@ function deutsch(zahl, nachkommastellen) {
 function zeigeKennzahlen(punkt) {
   // 5 Nachkommastellen ≈ 1 m Genauigkeit – reicht für ein Grundstück
   document.getElementById('wert-koordinaten').textContent =
-    deutsch(punkt.lat, 5) + '° N  ' + deutsch(punkt.lng, 5) + '° O';
+    deutsch(punkt.lat, 5) + '° N · ' + deutsch(punkt.lng, 5) + '° O';
 
   zeigeEinzugsbereiche();
 
   // Hinweistext ausblenden, Kennzahlen einblenden
   document.getElementById('hinweis').hidden = true;
-  document.getElementById('kennzahlen').hidden = false;
+  const kennzahlen = document.getElementById('kennzahlen');
+  kennzahlen.hidden = false;
+  spieleAb(kennzahlen, 'einblenden');   // Abschnitte gleiten nacheinander herein
 }
 
 // Tabelle "Einzugsbereiche" füllen – eine Zeile pro Radius
@@ -398,15 +604,15 @@ function zeigeEinzugsbereiche() {
     return '<tr>' +
       '<td>' + deutsch(radius, 0) + ' m</td>' +
       '<td>' + deutsch(hektar, 1) + ' ha</td>' +
-      '<td>≈ ' + deutsch(fussweg, 0) + ' m</td>' +
-      '<td>≈ ' + deutsch(gehzeit, 1) + ' Min.</td>' +
+      '<td>' + deutsch(fussweg, 0) + ' m</td>' +
+      '<td>' + deutsch(gehzeit, 1) + ' Min.</td>' +
       '</tr>';
   });
   document.getElementById('vergleich-zeilen').innerHTML = zeilen.join('');
 
   document.getElementById('vergleich-annahme').textContent =
-    'Annahme: Umwegfaktor ' + deutsch(UMWEGFAKTOR, 1) +
-    ', Gehtempo ' + deutsch(GEHTEMPO_KMH, 1) + ' km/h';
+    'Annahmen: Umwegfaktor ' + deutsch(UMWEGFAKTOR, 1) +
+    ', Gehtempo ' + deutsch(GEHTEMPO_KMH, 1) + ' km/h.';
 }
 
 // ------------------------------------------------------------
@@ -417,25 +623,48 @@ const exportKnopf = document.getElementById('export-knopf');
 const pdfKnopf = document.getElementById('pdf-knopf');
 const exportStatus = document.getElementById('export-status');
 
+// Wie viel Karte verdeckt das schwebende Panel? (in Pixeln)
+//   Großer Bildschirm: Panel rechts → Rand rechts.
+//   Handy: Panel unten → Rand unten.
+function verdeckterRand() {
+  const r = document.getElementById('panel').getBoundingClientRect();
+  if (r.top > window.innerHeight / 3) {
+    return { rechts: 0, unten: window.innerHeight - r.top };
+  }
+  return { rechts: window.innerWidth - r.left, unten: 0 };
+}
+
 // "Fotografiert" den Kartenbereich mit html-to-image.
 //   format:     'png' (verlustfrei) oder 'jpeg' (kleinere Datei, fürs PDF)
 //   pixelRatio: 2 = doppelte Auflösung, 3 = dreifache (scharf im Druck)
-function kartenBild(format, pixelRatio) {
+//   Das Bild endet links vom Glas-Panel (dort liegt die Analyse).
+async function kartenBild(format, pixelRatio) {
+  await warteAufAnimationen();
   const bereich = document.getElementById('karte-bereich');
+  const frei = verdeckterRand();
   const optionen = {
     pixelRatio: pixelRatio,
-    backgroundColor: '#F8F8F6',
+    width: bereich.clientWidth - frei.rechts,
+    height: bereich.clientHeight - frei.unten,
+    backgroundColor: '#F2F2F7',
     quality: 0.92,          // nur für JPEG wichtig
-    // Wir nutzen nur System-Schriften → keine Web-Schriften einbetten
-    skipFonts: true,
+    // Inter und IBM Plex Mono mit ins Bild übernehmen
+    // (klappt nicht, wenn die Seite als Datei geöffnet ist → dann ohne)
+    skipFonts: !location.protocol.startsWith('http'),
     // Zoom-Knöpfe (+/−) gehören nicht aufs Poster → weglassen
     filter: function (element) {
       return !(element.classList && element.classList.contains('leaflet-control-zoom'));
     }
   };
-  return format === 'jpeg'
-    ? htmlToImage.toJpeg(bereich, optionen)
-    : htmlToImage.toPng(bereich, optionen);
+  // Glas-Effekt kurz ausschalten (Unschärfe lässt sich nicht exportieren)
+  document.body.classList.add('export-modus');
+  try {
+    return format === 'jpeg'
+      ? await htmlToImage.toJpeg(bereich, optionen)
+      : await htmlToImage.toPng(bereich, optionen);
+  } finally {
+    document.body.classList.remove('export-modus');
+  }
 }
 
 exportKnopf.addEventListener('click', async function () {
@@ -482,6 +711,7 @@ pdfKnopf.addEventListener('click', async function () {
 
     // 2) Leeres A3-Blatt im Querformat
     const pdf = new jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a3' });
+    await ladePdfSchrift(pdf);   // IBM Plex Mono für die Zahlen (sonst Courier)
     const BLATT_B = 420, BLATT_H = 297;
     const RAND = 12;               // Seitenrand
     const KOPF_B = 95;             // Breite des Plankopfs rechts
@@ -494,7 +724,7 @@ pdfKnopf.addEventListener('click', async function () {
     const karteB = groesse.breite * massstab;
     const karteH = groesse.hoehe * massstab;
     pdf.addImage(bild, 'JPEG', RAND, RAND, karteB, karteH);
-    pdf.setDrawColor(17, 17, 17);
+    pdf.setDrawColor(29, 29, 31);
     pdf.setLineWidth(0.3);
     pdf.rect(RAND, RAND, karteB, karteH);   // feiner schwarzer Rahmen
 
@@ -508,7 +738,7 @@ pdfKnopf.addEventListener('click', async function () {
     y += 10;
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(22);
-    pdf.setTextColor(17, 17, 17);
+    pdf.setTextColor(29, 29, 31);
     pdf.text('15-Minuten-', x, y);
     pdf.text('Stadt-Scanner', x, y + 8.5);
     y += 15;
@@ -523,18 +753,64 @@ pdfKnopf.addEventListener('click', async function () {
     y = abschnitt(pdf, 'Standort', x, xr, y);
     pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(10);
-    pdf.setTextColor(17, 17, 17);
+    pdf.setTextColor(29, 29, 31);
     if (letzteAdresse) {
       const zeilen = pdf.splitTextToSize(letzteAdresse, KOPF_B);
       pdf.text(zeilen, x, y);
       y += zeilen.length * 4.6 + 2;
     }
-    pdf.setFont('courier', 'normal');
+    pdf.setFont(PDF_MONO, 'normal');
     pdf.text(deutsch(letzterPunkt.lat, 5) + '° N   ' + deutsch(letzterPunkt.lng, 5) + '° O', x, y);
     y += 12;
 
+    // Abschnitt: 15-Minuten-Bewertung (große Zahl in Akzentfarbe)
+    if (letzteBewertung) {
+      const b = letzteBewertung;
+      y = abschnitt(pdf, '01   15-Minuten-Bewertung', x, xr, y);
+      y += 6;
+      pdf.setFont(PDF_MONO, 'bold');
+      pdf.setFontSize(26);
+      pdf.setTextColor.apply(pdf, hexZuRgb(einstellungen.farbe));
+      pdf.text(b.punkte + '/' + b.maximum, x, y);
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(12);
+      pdf.setTextColor(29, 29, 31);
+      pdf.text(b.stufe, x + 34, y - 4.5);
+      pdf.setFont('helvetica', 'normal');
+      pdf.setFontSize(10);
+      pdf.text(b.prozent + ' % der möglichen Punkte', x + 34, y);
+      y += 8;
+      const erklaerung = pdf.splitTextToSize(
+        'Je Kategorie 2 Punkte, wenn mindestens ein Ziel im inneren Kreis (' +
+        deutsch(einstellungen.radiusInnen, 0) + ' m) liegt, 1 Punkt im äußeren Kreis (' +
+        deutsch(einstellungen.radiusAussen, 0) + ' m).' +
+        (b.fehlend.length ? ' Nicht im inneren Kreis: ' + b.fehlend.join(', ') + '.' : ''), KOPF_B);
+      grauerText(pdf, '', x, y, false);   // setzt Schrift klein + grau
+      pdf.text(erklaerung, x, y);
+      y += erklaerung.length * 3.6 + 10;
+    }
+
+    // Abschnitt: Infrastruktur (Werte aus dem Panel übernehmen)
+    y = abschnitt(pdf, '02   Infrastruktur', x, xr, y);
+    const spalten2 = [x, x + 66, xr];
+    tabellenKopf(pdf, ['Kategorie',
+      'bis ' + deutsch(einstellungen.radiusInnen, 0) + ' m',
+      'bis ' + deutsch(einstellungen.radiusAussen, 0) + ' m'], spalten2, y);
+    y += 6;
+    KATEGORIEN.forEach(function (kat) {
+      pdfSymbol(pdf, kat, x + 1.6, y - 1.2);   // farbiges Symbol vor dem Namen
+      tabellenZeile(pdf, [
+        '      ' + kat.name,
+        zahlOderStrich('anz-' + kat.id + '-innen'),
+        zahlOderStrich('anz-' + kat.id + '-aussen')
+      ], spalten2, x, xr, y, true);
+      y += 7;
+    });
+    grauerText(pdf, 'Parks zählen, wenn ihr Rand im Radius liegt.', x, y, false);
+    y += 14;
+
     // Abschnitt: Einzugsbereiche (gleiche Rechnung wie im Panel)
-    y = abschnitt(pdf, 'Einzugsbereiche', x, xr, y);
+    y = abschnitt(pdf, '03   Einzugsbereiche', x, xr, y);
     const spalten = [x, x + 38, x + 66, xr];   // Radius | Fläche | Fußweg | Gehzeit
     tabellenKopf(pdf, ['Radius', 'Fläche', 'Fußweg ca.', 'Gehzeit ca.'], spalten, y);
     y += 6;
@@ -552,26 +828,9 @@ pdfKnopf.addEventListener('click', async function () {
       ', Gehtempo ' + deutsch(GEHTEMPO_KMH, 1) + ' km/h', x, y, false);
     y += 12;
 
-    // Abschnitt: Infrastruktur (Werte aus dem Panel übernehmen)
-    y = abschnitt(pdf, 'Infrastruktur im Umkreis', x, xr, y);
-    const spalten2 = [x, x + 66, xr];
-    tabellenKopf(pdf, ['Kategorie',
-      'bis ' + deutsch(einstellungen.radiusInnen, 0) + ' m',
-      'bis ' + deutsch(einstellungen.radiusAussen, 0) + ' m'], spalten2, y);
-    y += 6;
-    KATEGORIEN.forEach(function (kat) {
-      tabellenZeile(pdf, [
-        kat.name,
-        zahlOderStrich('anz-' + kat.id + '-innen'),
-        zahlOderStrich('anz-' + kat.id + '-aussen')
-      ], spalten2, x, xr, y, true);
-      y += 7;
-    });
-    grauerText(pdf, 'Parks zählen, wenn ihr Rand im Radius liegt.', x, y, false);
-
     // 5) Fußzeile unten im Plankopf: Datum + Quellen (Lizenzpflicht!)
     let yu = BLATT_H - RAND - 14;
-    pdf.setDrawColor(17, 17, 17);
+    pdf.setDrawColor(29, 29, 31);
     pdf.setLineWidth(0.3);
     pdf.line(x, yu - 5, xr, yu - 5);
     const stand = window.OSM_DATEN ? ', Datenstand ' + OSM_DATEN.datenstand : '';
@@ -591,6 +850,50 @@ pdfKnopf.addEventListener('click', async function () {
 
 // --- kleine Helfer für das Planblatt ---
 
+// IBM Plex Mono für Zahlen im PDF. Die TTF-Dateien werden beim ersten
+// PDF-Export aus dem Internet geladen (jsDelivr, Lizenz: SIL OFL 1.1).
+// Klappt das nicht, bleibt es bei der eingebauten Schrift "courier".
+let PDF_MONO = 'courier';
+const PLEX_URL = 'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/ibmplexmono/';
+let plexDaten = null;   // zwischengespeichert: { normal: base64, bold: base64 }
+
+async function ladePdfSchrift(pdf) {
+  try {
+    if (!plexDaten) {
+      const laden = async function (datei) {
+        const antwort = await fetch(PLEX_URL + datei);
+        if (!antwort.ok) throw new Error(datei);
+        const bytes = new Uint8Array(await antwort.arrayBuffer());
+        let text = '';
+        for (let i = 0; i < bytes.length; i += 8192) {
+          text += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+        }
+        return btoa(text);   // jsPDF erwartet die Schrift als Base64-Text
+      };
+      plexDaten = { normal: await laden('IBMPlexMono-Regular.ttf'), bold: await laden('IBMPlexMono-Medium.ttf') };
+    }
+    pdf.addFileToVFS('PlexMono-Regular.ttf', plexDaten.normal);
+    pdf.addFont('PlexMono-Regular.ttf', 'PlexMono', 'normal');
+    pdf.addFileToVFS('PlexMono-Medium.ttf', plexDaten.bold);
+    pdf.addFont('PlexMono-Medium.ttf', 'PlexMono', 'bold');
+    PDF_MONO = 'PlexMono';
+  } catch (fehler) {
+    PDF_MONO = 'courier';
+  }
+}
+
+// Farbiges Symbol einer Kategorie ins PDF zeichnen (Mitte bei cx, cy; in mm)
+function pdfSymbol(pdf, kat, cx, cy) {
+  pdf.setFillColor.apply(pdf, hexZuRgb(kat.farbe));
+  pdf.setDrawColor.apply(pdf, hexZuRgb(kat.kontur));
+  pdf.setLineWidth(0.25);
+  const r = 1.6;
+  if (kat.form === 'kreis') pdf.circle(cx, cy, r, 'FD');
+  if (kat.form === 'quadrat') pdf.rect(cx - r, cy - r, 2 * r, 2 * r, 'FD');
+  if (kat.form === 'dreieck') pdf.triangle(cx, cy - r - 0.2, cx + r + 0.2, cy + r, cx - r - 0.2, cy + r, 'FD');
+  if (kat.form === 'flaeche') pdf.rect(cx - r - 0.5, cy - r + 0.3, 2 * r + 1, 2 * r - 0.6, 'FD');
+}
+
 // Breite und Höhe eines Bildes (in Pixeln) herausfinden
 function bildGroesse(datenUrl) {
   return new Promise(function (fertig, fehler) {
@@ -605,14 +908,14 @@ function bildGroesse(datenUrl) {
 function grauerText(pdf, text, x, y, versalien) {
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8);
-  pdf.setTextColor(138, 138, 134);
+  pdf.setTextColor(110, 110, 115);
   pdf.text(text, x, y, versalien === false ? {} : { charSpace: 0.6 });
 }
 
 // Abschnitts-Überschrift mit schwarzer Linie darunter; gibt neue y-Position zurück
 function abschnitt(pdf, titel, x, xr, y) {
   grauerText(pdf, titel.toUpperCase(), x, y);
-  pdf.setDrawColor(17, 17, 17);
+  pdf.setDrawColor(29, 29, 31);
   pdf.setLineWidth(0.3);
   pdf.line(x, y + 2.5, xr, y + 2.5);
   return y + 8;
@@ -622,7 +925,7 @@ function abschnitt(pdf, titel, x, xr, y) {
 function tabellenKopf(pdf, texte, spalten, y) {
   pdf.setFont('helvetica', 'normal');
   pdf.setFontSize(8);
-  pdf.setTextColor(138, 138, 134);
+  pdf.setTextColor(110, 110, 115);
   texte.forEach(function (text, i) {
     pdf.text(text, spalten[i], y, i === 0 ? {} : { align: 'right' });
   });
@@ -632,12 +935,12 @@ function tabellenKopf(pdf, texte, spalten, y) {
 //   ersteSpalteNormal: true = erste Spalte in normaler Schrift (z. B. Kategorie-Name)
 function tabellenZeile(pdf, texte, spalten, x, xr, y, ersteSpalteNormal) {
   pdf.setFontSize(10);
-  pdf.setTextColor(17, 17, 17);
+  pdf.setTextColor(29, 29, 31);
   texte.forEach(function (text, i) {
-    pdf.setFont(i === 0 && ersteSpalteNormal ? 'helvetica' : 'courier', 'normal');
+    pdf.setFont(i === 0 && ersteSpalteNormal ? 'helvetica' : PDF_MONO, 'normal');
     pdf.text(String(text), spalten[i], y, i === 0 ? {} : { align: 'right' });
   });
-  pdf.setDrawColor(221, 221, 216);
+  pdf.setDrawColor(229, 229, 234);
   pdf.setLineWidth(0.2);
   pdf.line(x, y + 2.5, xr, y + 2.5);
 }
@@ -695,11 +998,17 @@ gpkgKnopf.addEventListener('click', async function () {
     // 3) Ebene "standort"
     const mitte = zuUtm.forward([letzterPunkt.lng, letzterPunkt.lat]);
     neueEbene(db, 'standort', 'POINT', 'Analysierter Standort',
-      'name TEXT, lat REAL, lon REAL, ost_m REAL, nord_m REAL');
+      'name TEXT, lat REAL, lon REAL, ost_m REAL, nord_m REAL, ' +
+      'punkte INTEGER, punkte_max INTEGER, prozent INTEGER, bewertung TEXT');
     fuegeEin(db, 'standort', wkbPunkt(mitte), {
       name: letzteAdresse || '',
       lat: runde(letzterPunkt.lat, 6), lon: runde(letzterPunkt.lng, 6),
-      ost_m: runde(mitte[0], 1), nord_m: runde(mitte[1], 1)
+      ost_m: runde(mitte[0], 1), nord_m: runde(mitte[1], 1),
+      // 15-Minuten-Bewertung (leer, wenn außerhalb des Datengebiets)
+      punkte: letzteBewertung ? letzteBewertung.punkte : null,
+      punkte_max: letzteBewertung ? letzteBewertung.maximum : null,
+      prozent: letzteBewertung ? letzteBewertung.prozent : null,
+      bewertung: letzteBewertung ? letzteBewertung.stufe : null
     });
 
     // 4) Ebene "einzugsbereiche" – Kreise direkt in Metern berechnet

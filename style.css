@@ -1,205 +1,284 @@
-/* ===== Farben & Schriften (an einer Stelle, leicht änderbar) ===== */
-:root {
-  --bg: #F8F8F6;       /* Off-White Hintergrund */
-  --ink: #111111;      /* Tiefschwarz für Text und Linien */
-  --accent: #FF4F00;   /* International Orange */
-  --grey: #8A8A86;     /* dezentes Grau für Nebentexte */
+/* ============================================================
+   15-Minuten-Stadt-Scanner – Gestaltung („Glas“-Look)
+   Die Karte füllt das ganze Fenster. Panel, Legende und Knöpfe
+   schweben darüber wie mattiertes Glas (Unschärfe + Transparenz,
+   feiner heller Rand, weicher Schatten, runde Ecken).
+   Weiterhin: Zahlen in Monospace, eine Akzentfarbe (--accent).
+   ============================================================ */
 
-  --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+/* ===== 0. Schriften (liegen im Ordner "fonts", Lizenz: SIL OFL 1.1) ===== */
+@font-face {
+  font-family: "Inter";
+  src: url("fonts/inter-latin-variable.woff2") format("woff2");
+  font-weight: 100 900;          /* variable Schrift: alle Stärken in einer Datei */
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("fonts/ibm-plex-mono-latin-400.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("fonts/ibm-plex-mono-latin-500.woff2") format("woff2");
+  font-weight: 500 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ===== 1. Farben, Schriften, Abstände (zentral änderbar) ===== */
+:root {
+  /* Apple-Systemfarben (wie in iOS / macOS) */
+  --bg: #F2F2F7;        /* Apple Hintergrund-Grau */
+  --ink: #1D1D1F;       /* Apple Text-Schwarz */
+  --accent: #007AFF;    /* Apple Systemblau (in "Darstellung" änderbar) */
+  --grey: #6E6E73;      /* Apple Sekundärtext */
+  --hair: rgba(60, 60, 67, 0.12);   /* Apple Trennlinie */
+  --linie: rgba(60, 60, 67, 0.26);  /* etwas kräftigere Linie */
+
+  /* Kategorien in Apple-Systemfarben (auch in script.js: KATEGORIEN) */
+  --kat-oepnv: #30B0C7;       /* Teal */
+  --kat-versorgung: #FF9500;  /* Orange */
+  --kat-bildung: #AF52DE;     /* Lila */
+  --kat-gruen: #34C759;       /* Grün */
+
+  --sans: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --abstand: 18px;      /* Abstand zwischen den großen Bereichen */
+
+  /* --- Glas: an diesen Werten lässt sich der Effekt einstellen --- */
+  /* "Frosted Glass": milchig, stark verwischt, kühl-weiß */
+  --glas: rgba(244, 244, 248, 0.58);          /* Grundton, milchig-durchsichtig */
+  --glas-hell: rgba(255, 255, 255, 0.6);      /* hellere Glasfläche (Kacheln) */
+  --glas-rand: rgba(255, 255, 255, 0.8);      /* feiner heller Rand */
+  --glas-filter: blur(44px) saturate(190%) brightness(1.05);   /* starke Mattierung */
+  --glas-schatten:
+    0 16px 48px rgba(0, 0, 0, 0.12),          /* weicher Schatten nach unten */
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);  /* Lichtkante oben (wie poliertes Glas) */
+  --radius: 22px;       /* große Rundung der Glasflächen */
+
+  /* --- Bewegung: zwei Kurven wie bei Apple --- */
+  --feder: cubic-bezier(0.34, 1.4, 0.64, 1);   /* federt leicht nach */
+  --weich: cubic-bezier(0.2, 0.8, 0.2, 1);     /* schnell los, sanft ankommen */
+  --rand-abstand: 16px; /* Abstand der Glasflächen zum Fensterrand */
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ===== Seitenraster: Karte links, Panel rechts ===== */
+/* ===== 2. Aufbau: Karte über das ganze Fenster, Panel schwebt rechts ===== */
 html, body { height: 100%; }
 
 body {
-  display: grid;
-  grid-template-columns: 1fr 340px;
   height: 100vh;
   overflow: hidden;
   background: var(--bg);
   color: var(--ink);
   font-family: var(--sans);
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.45;
+  font-feature-settings: "ss01", "cv11";   /* Inter: ruhigere Ziffern/Formen */
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Kartenbereich: Karte füllt alles, Legende liegt darüber */
-#karte-bereich {
-  position: relative;
-  height: 100%;
-  min-height: 0;
-}
+#karte-bereich { position: fixed; inset: 0; overflow: hidden; }
+#map { height: 100%; background: var(--bg); }
 
-#map {
-  height: 100%;
-  background: var(--bg);
+/* Gemeinsame Glas-Optik für alle schwebenden Flächen */
+.glas,
+#panel,
+.legend {
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.12)), var(--glas);
+  -webkit-backdrop-filter: var(--glas-filter);
+  backdrop-filter: var(--glas-filter);
+  border: 1px solid var(--glas-rand);
+  box-shadow: var(--glas-schatten);
 }
 
 #panel {
+  position: fixed;
+  top: var(--rand-abstand);
+  right: var(--rand-abstand);
+  bottom: var(--rand-abstand);
+  z-index: 1001;
+  width: 340px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 32px 28px 20px;
-  border-left: 1px solid var(--ink);
-  overflow-y: auto;   /* nur als Notlösung bei sehr kleinen Bildschirmen */
+  gap: var(--abstand);
+  padding: 22px 24px 14px;
+  border-radius: var(--radius);
+  overflow-y: auto;     /* nur Notlösung bei sehr kleinen Bildschirmen */
+  scrollbar-width: none;
 }
+#panel::-webkit-scrollbar { display: none; }
 
-/* ===== Typografie ===== */
+/* ===== 3. Typografie ===== */
 .label {
-  font-size: 11px;
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--grey);
   margin-bottom: 8px;
 }
 
-h1 {
-  font-size: 28px;
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.01em;
+/* Nummer vor Abschnitts-Titeln: "01 Bewertung" wie auf Wettbewerbsplänen */
+.nr {
+  display: inline-block;
+  min-width: 22px;
+  font-family: var(--mono);
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--ink);
 }
 
-.mono {
-  font-family: var(--mono);
-  font-size: 12px;
+h1 {
+  font-size: 27px;
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+}
+
+.mono { font-family: var(--mono); }
+.klein { font-size: 11px; color: var(--grey); }
+
+.anmerkung {
+  margin-top: 8px;
+  font-size: 10.5px;
+  line-height: 1.4;
   color: var(--grey);
 }
+.anmerkung:empty { display: none; }
 
-.hint {
-  border-top: 1px solid var(--ink);
-  padding-top: 16px;
-}
+.hint { color: var(--grey); }
 
-/* ===== Adresssuche ===== */
-#suche .label { display: block; }
-
+/* ===== 4. Adresssuche: Glas-Kapsel mit rundem Pfeil-Knopf ===== */
 .suche-zeile {
   display: flex;
-  border: 1px solid var(--ink);
+  align-items: center;
+  padding: 3px 3px 3px 14px;
+  border-radius: 999px;
+  background: var(--glas-hell);
+  border: 1px solid var(--glas-rand);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.2s, border-color 0.2s;
 }
 
 #suche-eingabe {
   flex: 1;
   min-width: 0;
-  padding: 10px 12px;
+  padding: 6px 0;
   border: none;
   background: transparent;
   font: inherit;
+  font-size: 14px;
   color: var(--ink);
 }
-#suche-eingabe:focus { outline: 2px solid var(--accent); outline-offset: -2px; }
+#suche-eingabe:focus { outline: none; }
+.suche-zeile:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-fuellung, rgba(0, 122, 255, 0.25));
+}
+#suche-eingabe::-webkit-search-cancel-button { display: none; }
 
 #suche-knopf {
-  padding: 0 16px;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
   border: none;
-  border-left: 1px solid var(--ink);
-  background: var(--ink);
-  color: var(--bg);
+  border-radius: 50%;
+  background: var(--accent);   /* Hauptknopf in Akzentfarbe, wie bei Apple */
   font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  color: #fff;
   cursor: pointer;
 }
-#suche-knopf:hover { background: var(--accent); }
-#suche-knopf:disabled { opacity: 0.5; cursor: wait; }
+#suche-knopf:hover { filter: brightness(1.1); }
+#suche-knopf:disabled { opacity: 0.4; cursor: wait; }
 
-#suche-status:empty { display: none; }
+/* Lange Adressen auf 1 Zeile kürzen ("…") – volle Adresse beim Darüberfahren */
+#suche-status { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Lange Adressen auf 1 Zeile kürzen ("…"), damit das Panel nicht überläuft.
-   Die volle Adresse erscheint beim Darüberfahren und steht im PDF. */
-#suche-status {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* ===== 5. Ergebnis-Block: die Bewertung als große Zahl ===== */
+/* Die Bewertung liegt auf einer helleren Glas-Kachel */
+.ergebnis {
+  cursor: help;
+  padding: 12px 16px 13px;
+  border-radius: 16px;
+  background: var(--glas-hell);
+  border: 1px solid var(--glas-rand);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-/* ===== Kennzahlen (Tabelle: Bezeichnung links, Zahl rechts) ===== */
-#kennzahlen .label { margin-top: 16px; }
-#kennzahlen .label:first-child { margin-top: 0; }
-
-/* Standort-Zeile: "STANDORT" links, Koordinaten rechts */
-.standort-zeile {
+.ergebnis-zeile {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--ink);
-}
-.standort-zeile .mono-zahl {
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--ink);
+  align-items: center;
+  gap: 14px;
 }
 
-.werte {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  border-top: 1px solid var(--ink);
-}
-
-.werte dt,
-.werte dd {
-  padding: 6px 0;
-  border-bottom: 1px solid #DDDDD8;
-}
-
-.mono-zahl {
+.ergebnis-zahl {
   font-family: var(--mono);
-  font-size: 13px;
-  text-align: right;
+  font-size: 42px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.05em;
+  color: var(--accent);
 }
 
-/* ===== Tabelle Einzugsbereiche (Radius, Fläche, Fußweg, Gehzeit) ===== */
-.vergleich {
+.ergebnis-text { display: flex; flex-direction: column; gap: 2px; }
+.ergebnis-text strong { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+
+/* Überschriften der Tabellen-Abschnitte */
+.abschnitt { margin-top: var(--abstand); }
+
+/* ===== 6. Tabellen (Infrastruktur, Einzugsbereiche) ===== */
+.tabelle {
   width: 100%;
   border-collapse: collapse;
-  border-top: 1px solid var(--ink);
+  border-top: 1px solid var(--linie);
 }
 
-.vergleich th {
-  font-size: 11px;
+.tabelle th {
+  padding: 5px 0 5px 8px;
+  font-size: 10px;
   font-weight: 400;
   color: var(--grey);
   text-align: right;
-  padding: 4px 0 4px 8px;
-  border-bottom: 1px solid #DDDDD8;
+  border-bottom: 1px solid var(--hair);
 }
 
-.vergleich td {
+.tabelle td {
+  padding: 5px 0 5px 8px;
   font-family: var(--mono);
   font-size: 12px;
   text-align: right;
   white-space: nowrap;
-  padding: 4px 0 4px 8px;
-  border-bottom: 1px solid #DDDDD8;
+  border-bottom: 1px solid var(--hair);
 }
 
-/* erste Spalte (Radius) linksbündig wie die Bezeichnungen oben */
-.vergleich th:first-child,
-.vergleich td:first-child { text-align: left; padding-left: 0; }
+/* erste Spalte linksbündig, ohne Einzug */
+.tabelle th:first-child,
+.tabelle td:first-child { text-align: left; padding-left: 0; }
 
-/* Kategorie-Namen in normaler Schrift, nur Zahlen in Monospace */
-.vergleich td.kategorie { font-family: var(--sans); font-size: 13px; }
+/* Kategorie-Namen in normaler Schrift, Zahlen in Monospace */
+.tabelle td.kategorie { font-family: var(--sans); font-size: 13px; }
+.tabelle .sym { margin-right: 8px; }
 
-#infra-status:empty { display: none; }
-
-.anmerkung {
-  margin-top: 8px;
-  font-size: 11px;
-  color: var(--grey);
-}
-
-/* ===== Legende: liegt wie eine Planlegende unten links auf der Karte ===== */
+/* ===== 7. Legende: Glas-Karte unten links auf der Karte ===== */
 .legend {
   position: absolute;
-  left: 16px;
-  bottom: 24px;
-  z-index: 1000;          /* über der Karte */
-  padding: 12px 16px 8px;
-  background: var(--bg);
-  border: 1px solid var(--ink);
+  left: var(--rand-abstand);
+  bottom: var(--rand-abstand);
+  z-index: 1000;
+  padding: 13px 18px 11px;
+  border-radius: 16px;
+  font-size: 12px;
 }
 
 .legend ul { list-style: none; }
@@ -208,52 +287,59 @@ h1 {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 4px 0;
+  padding: 3px 0;
 }
+.legend .mono { font-size: 11px; color: var(--grey); }
 
+/* Muster für die beiden Kreise */
 .swatch {
   display: inline-block;
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 1.5px solid var(--accent);
 }
-.swatch-400 { background: var(--accent-fuellung, rgba(255, 79, 0, 0.12)); }
+.swatch-400 { background: var(--accent-fuellung, rgba(0, 122, 255, 0.15)); }
 .swatch-800 { border-style: dashed; }
 
-/* ===== Infrastruktur-Symbole (Karte, Legende, Tabelle) =====
+/* Symbol so breit wie die Kreis-Muster, damit die Texte bündig stehen */
+.legende-symbol { display: inline-flex; width: 14px; justify-content: center; }
+
+/* ===== 8. Infrastruktur-Symbole (Karte, Legende, Tabelle) =====
+   Kleine SVG-Grafiken in Pastell mit feiner dunkler Kontur:
    Kreis = ÖPNV, Quadrat = Supermarkt/Bäcker, Dreieck = Kita/Schule,
-   Fläche = Park. Farbe: --poi-farbe (schwarz, auf dunkler Karte hell) */
-.poi {
+   Rechteck = Park. Erzeugt von script.js (Funktion symbolSvg). */
+.sym {
   display: inline-block;
-  width: 8px;
-  height: 8px;
-  background: var(--poi-farbe, var(--ink));
+  width: 11px;
+  height: 11px;
+  vertical-align: -1px;
+  overflow: visible;
 }
-.poi-kreis   { border-radius: 50%; }
-.poi-dreieck { clip-path: polygon(50% 0, 100% 100%, 0 100%); width: 9px; height: 9px; }
-.poi-flaeche { width: 12px; height: 8px; opacity: 0.25; }
+.sym-flaeche { width: 14px; }
 
-/* In Legende und Tabelle immer schwarz (heller Hintergrund) */
-.legend .poi, .vergleich .poi { --poi-farbe: var(--ink); }
-.vergleich .poi { margin-right: 6px; vertical-align: 1px; }
+/* Symbole auf der Karte: Leaflet-Hülle ohne eigenen Rahmen */
+.poi-marker { background: none; border: none; }
+.poi-marker .sym { display: block; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.35)); }
 
-/* Symbol in der Legende so breit wie die Kreis-Muster daneben */
-.legende-symbol {
-  display: inline-flex;
-  width: 18px;
-  justify-content: center;
+/* ===== 9. Unterer Block: Darstellung, Export, Namensnennung ===== */
+#unten {
+  margin-top: auto;           /* schiebt den Block nach unten */
+  padding-top: 14px;
+  border-top: 1px solid var(--linie);
 }
 
-/* ===== Darstellung (aufklappbar) ===== */
+/* --- Darstellung (aufklappbar) --- */
 #darstellung summary {
   cursor: pointer;
-  list-style: none;            /* Standard-Dreieck ausblenden … */
+  list-style: none;
   margin-bottom: 0;
 }
 #darstellung summary::-webkit-details-marker { display: none; }
-#darstellung summary::after { content: ' ▸'; }   /* … eigenes Zeichen */
-#darstellung[open] summary::after { content: ' ▾'; }
+#darstellung summary::after { content: '  +'; }
+#darstellung[open] summary::after { content: '  –'; }
+#darstellung summary:hover { color: var(--ink); }
+#darstellung[open] { margin-bottom: 12px; }
 #darstellung[open] summary { margin-bottom: 8px; }
 
 .einstellung {
@@ -261,29 +347,26 @@ h1 {
   align-items: center;
   gap: 8px;
   padding: 6px 0;
-  border-bottom: 1px solid #DDDDD8;
-  font-size: 13px;
+  border-bottom: 1px solid var(--hair);
 }
-.einstellung:first-of-type { border-top: 1px solid var(--ink); }
-
-.einstellung-name {
-  width: 92px;
-  flex-shrink: 0;
-}
+.einstellung:first-of-type { border-top: 1px solid var(--hair); }
+.einstellung-name { width: 88px; flex-shrink: 0; color: var(--grey); }
 
 .farb-zeile { display: flex; gap: 6px; align-items: center; }
 
 .farbfeld {
   width: 18px;
   height: 18px;
-  border: 1px solid var(--ink);
+  border: none;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.5);
   cursor: pointer;
 }
-.farbfeld.aktiv { outline: 2px solid var(--ink); outline-offset: 2px; }
+.farbfeld.aktiv { outline: 1.5px solid var(--ink); outline-offset: 2px; }
 
 #farbe-frei {
-  width: 24px;
-  height: 22px;
+  width: 22px;
+  height: 20px;
   padding: 0;
   border: none;
   background: none;
@@ -293,19 +376,17 @@ h1 {
 #kartenstil,
 .einstellung input[type="number"] {
   font: inherit;
-  font-size: 13px;
-  padding: 3px 4px;
-  border: 1px solid var(--ink);
+  padding: 2px 0;
+  border: none;
+  border-bottom: 1px solid var(--linie);
   background: transparent;
   color: var(--ink);
 }
 #kartenstil { flex: 1; }
-.einstellung input[type="number"] { width: 64px; font-family: var(--mono); }
+.einstellung input[type="number"] { width: 56px; font-family: var(--mono); text-align: right; }
 
 #deckkraft { flex: 1; accent-color: var(--accent); }
-#deckkraft-wert { width: 40px; }
-
-#darstellung-status:empty { display: none; }
+#deckkraft-wert { width: 36px; font-family: var(--mono); text-align: right; }
 
 .link-knopf {
   margin-top: 6px;
@@ -313,57 +394,226 @@ h1 {
   background: none;
   padding: 0;
   font: inherit;
-  font-size: 11px;
+  font-size: 10.5px;
   color: var(--grey);
   text-decoration: underline;
+  text-underline-offset: 2px;
   cursor: pointer;
 }
 .link-knopf:hover { color: var(--ink); }
 
-/* ===== Kartenstile (Filter auf die Hintergrundkarte) ===== */
-.stil-grau .basemap   { filter: grayscale(100%) brightness(1.08) contrast(0.85); }
+/* --- Export: drei Glas-Kapseln in einer Zeile --- */
+#export {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  white-space: nowrap;   /* Knöpfe nie umbrechen */
+}
+#export .label { margin: 0 auto 0 0; }   /* "EXPORT" links, Knöpfe rechts */
+
+.export-link {
+  padding: 5px 10px;
+  border: 1px solid var(--glas-rand);
+  border-radius: 999px;
+  background: var(--glas-hell);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 1px 2px rgba(0, 0, 0, 0.06);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  cursor: pointer;
+}
+.export-link:hover { background: #fff; }
+.export-link::after { content: ' ↓'; color: var(--grey); }
+.export-link:hover { color: var(--accent); }
+.export-link:hover::after { color: var(--accent); }
+.export-link:disabled { opacity: 0.4; cursor: wait; }
+
+/* --- Namensnennung --- */
+footer {
+  margin-top: 8px;
+  font-size: 10.5px;
+  color: var(--grey);
+}
+footer a { color: var(--grey); text-underline-offset: 2px; }
+footer a:hover { color: var(--ink); }
+
+/* ===== 10. Karte: Hintergrund-Stile ===== */
+/* "Hell-grau": sehr helle, leicht warme Karte – Analyse tritt hervor */
+.stil-grau .basemap   { filter: grayscale(100%) brightness(1.07) contrast(0.78); }   /* neutrales, kühles Grau */
 .stil-farbig .basemap { filter: saturate(0.8); }
 .stil-dunkel .basemap { filter: grayscale(100%) invert(100%) brightness(0.85) contrast(0.9); }
 .stil-dunkel { background: #1a1a1a !important; }
-/* ===== Export-Knopf (Umriss-Stil, wird beim Darüberfahren orange) ===== */
-#export { margin-top: auto; }   /* schiebt Export + Footer nach unten */
 
-.knopf-zeile {
-  display: flex;
-  gap: 8px;
+/* ===== 11. Leaflet-Bedienelemente im gleichen Stil ===== */
+.leaflet-container { font-family: var(--sans); }
+
+/* Steuerelemente oben links mit Abstand zum Rand */
+.leaflet-top.leaflet-left { top: calc(var(--rand-abstand) - 10px); left: calc(var(--rand-abstand) - 10px); }
+
+/* Rechte Steuerelemente (Maßstab, Namensnennung) links neben das Panel
+   rücken, damit sie nicht hinter dem Glas verschwinden */
+.leaflet-right { right: calc(340px + var(--rand-abstand) * 2); }
+.leaflet-bottom.leaflet-right { bottom: calc(var(--rand-abstand) - 10px); }
+
+/* Zoom-Knöpfe: senkrechte Glas-Kapsel */
+.leaflet-bar,
+.leaflet-touch .leaflet-bar {
+  border: 1px solid var(--glas-rand) !important;
+  border-radius: 14px !important;
+  overflow: hidden;
+  background: linear-gradient(150deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0.12)), var(--glas);
+  -webkit-backdrop-filter: var(--glas-filter);
+  backdrop-filter: var(--glas-filter);
+  box-shadow: var(--glas-schatten) !important;
 }
-
-.knopf-umriss {
-  flex: 1;
-  padding: 10px 8px;
-  white-space: nowrap;
-  border: 1px solid var(--ink);
+.leaflet-bar a,
+.leaflet-bar a:first-child,
+.leaflet-bar a:last-child {
+  width: 34px;
+  height: 34px;
+  line-height: 33px;
+  border-radius: 0 !important;
+  border-bottom-color: var(--hair);
   background: transparent;
   color: var(--ink);
-  font: inherit;
-  cursor: pointer;
+  font-family: var(--sans);
+  font-weight: 400;
 }
-.knopf-umriss:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
-.knopf-umriss:disabled { opacity: 0.5; cursor: wait; }
+.leaflet-bar a:hover { background: rgba(255, 255, 255, 0.6); color: var(--ink); }
 
-#export-status:empty { display: none; }
-
-/* Maßstabsleiste im gleichen Stil wie der Rest */
+/* Maßstabsleiste */
 .leaflet-control-scale-line {
   font-family: var(--mono);
   font-size: 10px;
   color: var(--ink);
   border-color: var(--ink);
-  background: rgba(248, 248, 246, 0.85);
+  background: rgba(255, 255, 255, 0.6);
 }
 
-/* ===== Footer mit OSM-Namensnennung ===== */
-footer {
-  font-size: 11px;
+/* Namensnennung auf der Karte: kleine Glas-Kapsel */
+.leaflet-control-attribution {
+  margin-left: 6px !important;
+  padding: 2px 9px !important;
+  border-radius: 999px;
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.62) !important;
+  -webkit-backdrop-filter: var(--glas-filter);
+  backdrop-filter: var(--glas-filter);
   color: var(--grey);
 }
-footer a { color: var(--ink); }
+.leaflet-control-attribution a { color: var(--ink); }
 
-/* Leaflet-Attribution auf der Karte im gleichen Stil */
-.leaflet-container { font-family: var(--sans); }
-.leaflet-control-attribution { font-size: 10px; }
+/* Tooltips (Namen beim Darüberfahren): kleine Glas-Schilder */
+.leaflet-tooltip {
+  border: 1px solid var(--glas-rand);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  background: rgba(246, 246, 250, 0.82);
+  -webkit-backdrop-filter: var(--glas-filter);
+  backdrop-filter: var(--glas-filter);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 12px;
+  padding: 4px 9px;
+}
+.leaflet-tooltip-top::before { border-top-color: rgba(246, 246, 250, 0.82); }
+
+/* ===== 12. Export: Glas kann nicht "fotografiert" werden ===== */
+/* Während PNG/PDF entstehen, setzt script.js die Klasse "export-modus":
+   Unschärfe aus, Flächen fast deckend. Das Bild endet links vom Panel –
+   genau dort stehen Maßstab und Namensnennung (siehe Abschnitt 11). */
+.export-modus .legend,
+.export-modus .leaflet-control-attribution {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: rgba(246, 246, 250, 0.94) !important;
+}
+.export-modus .legend { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12); }
+
+/* ===== 13. Animationen ===== */
+
+/* Beim Laden: Panel gleitet von rechts herein, Legende von unten */
+@keyframes panel-rein   { from { opacity: 0; transform: translateX(28px) scale(0.98); } }
+@keyframes legende-rein { from { opacity: 0; transform: translateY(16px) scale(0.98); } }
+@keyframes hochgleiten  { from { opacity: 0; transform: translateY(10px); } }
+@keyframes auftauchen   { from { opacity: 0; transform: scale(0.2); } }
+@keyframes einblenden   { from { opacity: 0; } }
+@keyframes pulsieren    { 50% { transform: scale(0.88); opacity: 0.6; } }
+
+#panel  { animation: panel-rein 0.7s var(--weich) both; }
+.legend { animation: legende-rein 0.7s var(--weich) 0.15s both; }
+.leaflet-control-zoom { animation: einblenden 0.6s var(--weich) 0.25s both; }
+
+/* Ergebnisse: Abschnitte gleiten nacheinander herein (je 50 ms später) */
+#kennzahlen.einblenden > * { animation: hochgleiten 0.55s var(--weich) both; }
+#kennzahlen.einblenden > :nth-child(2) { animation-delay: 0.05s; }
+#kennzahlen.einblenden > :nth-child(3) { animation-delay: 0.10s; }
+#kennzahlen.einblenden > :nth-child(4) { animation-delay: 0.15s; }
+#kennzahlen.einblenden > :nth-child(5) { animation-delay: 0.20s; }
+#kennzahlen.einblenden > :nth-child(6) { animation-delay: 0.25s; }
+
+/* Symbole auf der Karte "ploppen" auf (Verzögerung setzt script.js) */
+.poi-marker .sym { animation: auftauchen 0.5s var(--feder) both; transform-origin: center; }
+path.park { animation: einblenden 0.6s var(--weich) 0.15s both; }
+
+/* Während die Karte zum Standort schwenkt, sind Symbole und Parks kurz
+   ausgeblendet – danach starten ihre Animationen frisch */
+.karte-bewegt .poi-marker .sym,
+.karte-bewegt path.park { display: none; }
+
+/* Such-Knopf pulsiert, solange gesucht wird */
+#suche-knopf:disabled { animation: pulsieren 0.9s ease-in-out infinite; }
+
+/* Knöpfe: weiches Reagieren auf Darüberfahren und Drücken */
+.farbfeld { transition: transform 0.25s var(--feder), outline-color 0.2s; }
+.farbfeld:hover { transform: scale(1.15); }
+.farbfeld:active { transform: scale(0.9); }
+.export-link { transition: background 0.2s, color 0.2s, transform 0.25s var(--feder), box-shadow 0.2s; }
+.export-link:hover { transform: translateY(-1px); box-shadow: inset 0 1px 0 #fff, 0 4px 12px rgba(0, 0, 0, 0.08); }
+.export-link:active { transform: scale(0.94); transition-duration: 0.08s; }
+#suche-knopf { transition: background 0.2s, filter 0.2s, transform 0.25s var(--feder); }
+#suche-knopf:active { transform: scale(0.86); transition-duration: 0.08s; }
+.leaflet-bar a { transition: background 0.2s; }
+.leaflet-bar a:active { background: rgba(255, 255, 255, 0.9); }
+.ergebnis { transition: transform 0.3s var(--feder), box-shadow 0.3s; }
+.ergebnis:hover { transform: scale(1.015); }
+.tabelle tbody tr { transition: background 0.2s; }
+.tabelle tbody tr:hover { background: rgba(255, 255, 255, 0.5); }
+
+/* "Darstellung" klappt weich auf statt zu springen (Chrome/Edge;
+   andere Browser klappen einfach ohne Animation auf) */
+:root { interpolate-size: allow-keywords; }
+#darstellung::details-content {
+  block-size: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition: block-size 0.4s var(--weich), opacity 0.3s, content-visibility 0.4s allow-discrete;
+}
+#darstellung[open]::details-content { block-size: auto; opacity: 1; }
+
+/* Beim Export keine Animationen (sonst wären Symbole unsichtbar im Bild) */
+.export-modus *,
+.export-modus *::before,
+.export-modus *::after { animation: none !important; transition: none !important; }
+
+/* "Bewegung reduzieren" im Betriebssystem: alles ruhig */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ===== 14. Schmale Bildschirme (Handy): Panel als Blatt unten ===== */
+@media (max-width: 700px) {
+  #panel {
+    top: auto;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    width: auto;
+    max-height: 55vh;
+  }
+  .legend { display: none; }
+  .leaflet-right { right: 0; }
+  .leaflet-bottom.leaflet-right { bottom: calc(55vh + 20px); }
+}
