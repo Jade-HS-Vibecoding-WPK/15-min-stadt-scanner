@@ -782,13 +782,24 @@ footer a:hover { color: var(--ink); }
 /* ===== 11. Leaflet-Bedienelemente im gleichen Stil ===== */
 .leaflet-container { font-family: var(--sans); }
 
-/* Mauszeiger auf der Karte: Zielkreis in der Akzentfarbe (Bild aus
-   script.js, setzeKartenCursor). Beim Verschieben: geschlossene Hand,
-   über Symbolen und Parks: Zeigefinger (dort gibt es einen Namen). */
-#map.leaflet-grab { cursor: var(--cursor-karte, crosshair); }
-body.leaflet-dragging #map.leaflet-grab { cursor: grabbing; }
-#map .leaflet-interactive,
-#map .poi-marker { cursor: pointer; }
+/* Mauszeiger wie beim iPad: ein heller, halbdurchsichtiger Kreis mit
+   feinem dunklem Rand und leichtem Schatten (hebt sich von der Karte ab).
+   Über allem, was man anklicken kann, wird er größer und heller
+   (Apple nennt das "Hover-Effekt"); beim Ziehen der Karte dunkler.
+   Die Kreise sind kleine SVG-Bilder; die Zahlen danach = Klickpunkt (Mitte). */
+:root {
+  --cursor: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2228%22%20height%3D%2228%22%20viewBox%3D%220%200%2028%2028%22%3E%3Cdefs%3E%3Cfilter%20id%3D%22s%22%20x%3D%22-50%25%22%20y%3D%22-50%25%22%20width%3D%22200%25%22%20height%3D%22200%25%22%3E%3CfeDropShadow%20dx%3D%220%22%20dy%3D%221%22%20stdDeviation%3D%221.2%22%20flood-color%3D%22%23000%22%20flood-opacity%3D%220.28%22/%3E%3C/filter%3E%3C/defs%3E%3Ccircle%20cx%3D%2214.0%22%20cy%3D%2214.0%22%20r%3D%228.5%22%20fill%3D%22rgba%28255%2C255%2C255%2C0.82%29%22%20stroke%3D%22rgba%2829%2C29%2C31%2C0.45%29%22%20stroke-width%3D%221.5%22%20filter%3D%22url%28%23s%29%22/%3E%3C/svg%3E") 14 14, default;
+  --cursor-knopf: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2236%22%20height%3D%2236%22%20viewBox%3D%220%200%2036%2036%22%3E%3Cdefs%3E%3Cfilter%20id%3D%22s%22%20x%3D%22-50%25%22%20y%3D%22-50%25%22%20width%3D%22200%25%22%20height%3D%22200%25%22%3E%3CfeDropShadow%20dx%3D%220%22%20dy%3D%221%22%20stdDeviation%3D%221.2%22%20flood-color%3D%22%23000%22%20flood-opacity%3D%220.28%22/%3E%3C/filter%3E%3C/defs%3E%3Ccircle%20cx%3D%2218.0%22%20cy%3D%2218.0%22%20r%3D%2213%22%20fill%3D%22rgba%28255%2C255%2C255%2C0.5%29%22%20stroke%3D%22rgba%2829%2C29%2C31%2C0.3%29%22%20stroke-width%3D%221.5%22%20filter%3D%22url%28%23s%29%22/%3E%3C/svg%3E") 18 18, pointer;
+  --cursor-ziehen: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20width%3D%2228%22%20height%3D%2228%22%20viewBox%3D%220%200%2028%2028%22%3E%3Cdefs%3E%3Cfilter%20id%3D%22s%22%20x%3D%22-50%25%22%20y%3D%22-50%25%22%20width%3D%22200%25%22%20height%3D%22200%25%22%3E%3CfeDropShadow%20dx%3D%220%22%20dy%3D%221%22%20stdDeviation%3D%221.2%22%20flood-color%3D%22%23000%22%20flood-opacity%3D%220.28%22/%3E%3C/filter%3E%3C/defs%3E%3Ccircle%20cx%3D%2214.0%22%20cy%3D%2214.0%22%20r%3D%227%22%20fill%3D%22rgba%28255%2C255%2C255%2C0.95%29%22%20stroke%3D%22rgba%2829%2C29%2C31%2C0.65%29%22%20stroke-width%3D%221.5%22%20filter%3D%22url%28%23s%29%22/%3E%3C/svg%3E") 14 14, grabbing;
+}
+html, body, #map.leaflet-grab, .leaflet-container { cursor: var(--cursor); }
+button, a, label, select, summary, input[type="range"], input[type="color"],
+.leaflet-interactive, .poi-marker, .leaflet-bar a,
+#map .leaflet-interactive { cursor: var(--cursor-knopf) !important; }
+button:disabled { cursor: var(--cursor) !important; }
+body.leaflet-dragging, body.leaflet-dragging #map.leaflet-grab,
+body.leaflet-dragging .leaflet-interactive { cursor: var(--cursor-ziehen) !important; }
+input[type="search"], input[type="number"] { cursor: text; }
 
 /* Steuerelemente oben links mit Abstand zum Rand */
 .leaflet-top.leaflet-left { top: calc(var(--rand-abstand) - 10px); left: calc(var(--rand-abstand) - 10px); }
