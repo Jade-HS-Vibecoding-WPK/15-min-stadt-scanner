@@ -15,7 +15,8 @@ const STANDARD = {
   kartenstil: 'grau',      // 'grau', 'farbig' oder 'dunkel'
   deckkraft: 0.12,         // Füllung des inneren Kreises (0 = nur Linie)
   radiusInnen: 400,        // Meter (≈ 5 Min.)
-  radiusAussen: 800        // Meter (≈ 10 Min.)
+  radiusAussen: 800,       // Meter (≈ 10 Min.)
+  profil: 'alltag'         // Zielgruppe: alltag, familie, senioren, studierende
 };
 const SPEICHER_NAME = 'stadtScannerEinstellungen-v3';   // v3: Apple-Farben
 let einstellungen = ladeEinstellungen();
@@ -30,6 +31,7 @@ function ladeEinstellungen() {
 function pruefeEinstellungen(e) {
   if (!/^#[0-9a-fA-F]{6}$/.test(e.farbe)) e.farbe = STANDARD.farbe;
   if (['grau', 'farbig', 'dunkel'].indexOf(e.kartenstil) < 0) e.kartenstil = STANDARD.kartenstil;
+  if (['alltag', 'familie', 'senioren', 'studierende'].indexOf(e.profil) < 0) e.profil = STANDARD.profil;
   e.deckkraft = Math.min(0.5, Math.max(0, Number(e.deckkraft) || 0));
   e.radiusInnen = Math.round(Number(e.radiusInnen)) || STANDARD.radiusInnen;
   e.radiusAussen = Math.round(Number(e.radiusAussen)) || STANDARD.radiusAussen;
@@ -54,12 +56,39 @@ const GEHTEMPO_M_PRO_MIN = GEHTEMPO_KMH * 1000 / 60;  // = 80 m pro Minute
 // Kategorien der Infrastruktur (Daten: daten/oldenburg-osm.js)
 //   form: wie die Orte auf der Karte und in der Legende aussehen
 //   farbe: Apple-Systemfarbe (Füllung), kontur: weißer Rand (wie Apple Karten)
-const KATEGORIEN = [
-  { id: 'oepnv',      name: 'ÖPNV-Haltepunkte',     form: 'kreis',   farbe: '#30B0C7', kontur: '#FFFFFF' },
-  { id: 'versorgung', name: 'Supermärkte & Bäcker', form: 'quadrat', farbe: '#FF9500', kontur: '#FFFFFF' },
-  { id: 'bildung',    name: 'Kitas & Schulen',      form: 'dreieck', farbe: '#AF52DE', kontur: '#FFFFFF' },
-  { id: 'gruen',      name: 'Parks',                form: 'flaeche', farbe: '#34C759', kontur: '#FFFFFF' }
+const ALLE_KATEGORIEN = [
+  { id: 'oepnv',      name: 'ÖPNV-Haltepunkte',     kurz: 'ÖPNV-Haltepunkt',    form: 'kreis',    farbe: '#30B0C7', kontur: '#FFFFFF' },
+  { id: 'versorgung', name: 'Supermärkte & Bäcker', kurz: 'Supermarkt / Bäcker', form: 'quadrat',  farbe: '#FF9500', kontur: '#FFFFFF' },
+  { id: 'bildung',    name: 'Kitas & Schulen',      kurz: 'Kita / Schule',      form: 'dreieck',  farbe: '#AF52DE', kontur: '#FFFFFF' },
+  { id: 'gesundheit', name: 'Ärzte & Apotheken',    kurz: 'Arzt / Apotheke',    form: 'plus',     farbe: '#FF3B30', kontur: '#FFFFFF' },
+  { id: 'spielplatz', name: 'Spielplätze',          kurz: 'Spielplatz',         form: 'raute',    farbe: '#FFCC00', kontur: '#FFFFFF' },
+  { id: 'kultur',     name: 'Cafés & Kultur',       kurz: 'Café / Kultur',      form: 'sechseck', farbe: '#A2845E', kontur: '#FFFFFF' },
+  { id: 'gruen',      name: 'Parks',                kurz: 'Park',               form: 'flaeche',  farbe: '#34C759', kontur: '#FFFFFF' }
 ];
+
+// Zielgruppen-Profile: Welche Kategorien zählen für wen?
+//   Jede Kategorie im Profil bringt bis zu 2 Punkte (wie bisher).
+const PROFILE = [
+  { id: 'alltag',      name: 'Alltag',      text: 'Grundversorgung für alle',
+    kategorien: ['oepnv', 'versorgung', 'bildung', 'gruen'] },
+  { id: 'familie',     name: 'Familie',     text: 'mit Kindern: Kita, Schule, Spielplatz',
+    kategorien: ['oepnv', 'versorgung', 'bildung', 'spielplatz', 'gruen'] },
+  { id: 'senioren',    name: 'Senioren',    text: 'Ärzte, Apotheken und Treffpunkte nah',
+    kategorien: ['oepnv', 'versorgung', 'gesundheit', 'kultur', 'gruen'] },
+  { id: 'studierende', name: 'Studierende', text: 'Mobilität, Einkauf, Cafés und Kultur',
+    kategorien: ['oepnv', 'versorgung', 'kultur', 'gruen'] }
+];
+
+// Aktive Kategorien (je nach gewähltem Profil) – wird von waehleProfil gesetzt
+let KATEGORIEN = kategorienVon(einstellungen.profil);
+
+function kategorienVon(profilId) {
+  const profil = PROFILE.find(function (p) { return p.id === profilId; }) || PROFILE[0];
+  return ALLE_KATEGORIEN.filter(function (k) { return profil.kategorien.indexOf(k.id) >= 0; });
+}
+function kategorie(id) {
+  return ALLE_KATEGORIEN.find(function (k) { return k.id === id; });
+}
 
 // 1) Karte erzeugen und auf Oldenburg zentrieren
 //    [Breitengrad, Längengrad], Zoomstufe
@@ -110,9 +139,12 @@ function faerbeKreise() {
 // Kleines SVG-Symbol einer Kategorie: kräftige Füllung + weißer Rand.
 //   Wird auf der Karte, in der Legende und in der Tabelle verwendet.
 function symbolSvg(katId) {
-  const kat = KATEGORIEN.find(function (k) { return k.id === katId; });
-  const stil = 'fill="' + kat.farbe + '" stroke="' + kat.kontur + '" stroke-width="1"';
+  const kat = kategorie(katId);
+  const stil = 'fill="' + kat.farbe + '" stroke="' + kat.kontur + '" stroke-width="1" stroke-linejoin="round"';
   let form;
+  if (kat.form === 'plus')     form = '<path d="M4,1 H7 V4 H10 V7 H7 V10 H4 V7 H1 V4 H4 Z" ' + stil + '/>';
+  if (kat.form === 'raute')    form = '<polygon points="5.5,0.5 10.5,5.5 5.5,10.5 0.5,5.5" ' + stil + '/>';
+  if (kat.form === 'sechseck') form = '<polygon points="5.5,0.8 9.8,3.2 9.8,7.8 5.5,10.2 1.2,7.8 1.2,3.2" ' + stil + '/>';
   if (kat.form === 'kreis')   form = '<circle cx="5.5" cy="5.5" r="4.5" ' + stil + '/>';
   if (kat.form === 'quadrat') form = '<rect x="1.5" y="1.5" width="8" height="8" ' + stil + '/>';
   if (kat.form === 'dreieck') form = '<polygon points="5.5,1 10,10 1,10" ' + stil + ' stroke-linejoin="round"/>';
@@ -335,9 +367,11 @@ function zaehleInfrastruktur(punkt) {
     // Schneller Vorab-Test: grob zu weit weg? Dann gar nicht genau rechnen.
     if (!grobInDerNaehe(ort, punkt, rAussen)) return;
 
+    const kat = ort.properties.kat;
+    if (!zaehler[kat]) return;   // Kategorie gehört nicht zum gewählten Profil
+
     const stelle = naechsteStelle(ort, punkt);   // Luftlinie in Metern + Zielpunkt
     const entfernung = stelle.entfernung;
-    const kat = ort.properties.kat;
 
     // Nächstes Ziel dieser Kategorie merken – auch außerhalb der Kreise,
     // damit wir zeigen können, wie weit es bis zum nächsten Ziel ist
@@ -436,10 +470,11 @@ function zeigeBewertung(b) {
 //     Jedes Stück ist eine Kategorie; voll = 2 Punkte, halb = 1 Punkt.
 function zeichneRing(b) {
   const R = 33, MITTE = 40, LUECKE = 14;   // Radius, Mittelpunkt, Lücke in Grad
-  const STUECK = 90 - LUECKE;
+  const TEIL = 360 / KATEGORIEN.length;      // 4 Kategorien = 90°, 5 = 72°
+  const STUECK = TEIL - LUECKE;
   let svg = '<svg viewBox="0 0 80 80" aria-hidden="true">';
   KATEGORIEN.forEach(function (kat, i) {
-    const von = i * 90 + LUECKE / 2 - 90;   // oben beginnen, im Uhrzeigersinn
+    const von = i * TEIL + LUECKE / 2 - 90;   // oben beginnen, im Uhrzeigersinn
     const d = bogen(MITTE, R, von, von + STUECK);
     const p = b ? b.details[i].punkte : 0;
     svg += '<path class="ring-spur" d="' + d + '"/>';
@@ -699,11 +734,11 @@ function ersterPunkt(geo) {
 function zeichneOrt(ort) {
   const kat = ort.properties.kat;
   const name = document.createElement('span');
-  name.textContent = ort.properties.name || KATEGORIEN.find(function (k) { return k.id === kat; }).name;
+  name.textContent = ort.properties.name || kategorie(kat).kurz;
 
   if (kat === 'gruen') {
     // Parks als salbeigrüne Fläche mit feiner Kontur
-    const gruen = KATEGORIEN.find(function (k) { return k.id === 'gruen'; });
+    const gruen = kategorie('gruen');
     L.geoJSON(ort, {
       style: { color: gruen.farbe, weight: 1, fillColor: gruen.farbe, fillOpacity: 0.28, className: 'park' },
       interactive: true
@@ -997,7 +1032,7 @@ pdfKnopf.addEventListener('click', async function () {
     // Abschnitt: 15-Minuten-Bewertung (große Zahl in Akzentfarbe)
     if (letzteBewertung) {
       const b = letzteBewertung;
-      y = abschnitt(pdf, '01   15-Minuten-Bewertung', x, xr, y);
+      y = abschnitt(pdf, '01   15-Minuten-Bewertung · Profil ' + aktivesProfil().name, x, xr, y);
       y += 6;
       pdf.setFont(PDF_MONO, 'bold');
       pdf.setFontSize(26);
@@ -1124,6 +1159,18 @@ function pdfSymbol(pdf, kat, cx, cy) {
   if (kat.form === 'quadrat') pdf.rect(cx - r, cy - r, 2 * r, 2 * r, 'FD');
   if (kat.form === 'dreieck') pdf.triangle(cx, cy - r - 0.2, cx + r + 0.2, cy + r, cx - r - 0.2, cy + r, 'FD');
   if (kat.form === 'flaeche') pdf.rect(cx - r - 0.5, cy - r + 0.3, 2 * r + 1, 2 * r - 0.6, 'FD');
+  // Vielecke: Liste von Eckpunkten (relativ zur Mitte) als geschlossener Linienzug
+  const vieleck = function (ecken) {
+    const schritte = [];
+    for (let i = 1; i < ecken.length; i++) {
+      schritte.push([ecken[i][0] - ecken[i - 1][0], ecken[i][1] - ecken[i - 1][1]]);
+    }
+    pdf.lines(schritte, cx + ecken[0][0], cy + ecken[0][1], [1, 1], 'FD', true);
+  };
+  const a = r * 0.35;
+  if (kat.form === 'plus') vieleck([[-a, -r], [a, -r], [a, -a], [r, -a], [r, a], [a, a], [a, r], [-a, r], [-a, a], [-r, a], [-r, -a], [-a, -a]]);
+  if (kat.form === 'raute') vieleck([[0, -r - 0.3], [r + 0.3, 0], [0, r + 0.3], [-r - 0.3, 0]]);
+  if (kat.form === 'sechseck') vieleck([[0, -r], [r * 0.87, -r / 2], [r * 0.87, r / 2], [0, r], [-r * 0.87, r / 2], [-r * 0.87, -r / 2]]);
 }
 
 // Breite und Höhe eines Bildes (in Pixeln) herausfinden
@@ -1226,7 +1273,7 @@ gpkgKnopf.addEventListener('click', async function () {
     const mitte = zuUtm.forward([letzterPunkt.lng, letzterPunkt.lat]);
     neueEbene(db, 'standort', 'POINT', 'Analysierter Standort',
       'name TEXT, lat REAL, lon REAL, ost_m REAL, nord_m REAL, ' +
-      'punkte INTEGER, punkte_max INTEGER, prozent INTEGER, bewertung TEXT');
+      'punkte INTEGER, punkte_max INTEGER, prozent INTEGER, bewertung TEXT, profil TEXT');
     fuegeEin(db, 'standort', wkbPunkt(mitte), {
       name: letzteAdresse || '',
       lat: runde(letzterPunkt.lat, 6), lon: runde(letzterPunkt.lng, 6),
@@ -1235,7 +1282,8 @@ gpkgKnopf.addEventListener('click', async function () {
       punkte: letzteBewertung ? letzteBewertung.punkte : null,
       punkte_max: letzteBewertung ? letzteBewertung.maximum : null,
       prozent: letzteBewertung ? letzteBewertung.prozent : null,
-      bewertung: letzteBewertung ? letzteBewertung.stufe : null
+      bewertung: letzteBewertung ? letzteBewertung.stufe : null,
+      profil: aktivesProfil().name
     });
 
     // 4) Ebene "einzugsbereiche" – Kreise direkt in Metern berechnet
@@ -1255,7 +1303,7 @@ gpkgKnopf.addEventListener('click', async function () {
 
     // 5) Ebenen "infrastruktur" (Punkte) und "parks" (Flächen)
     const spalten = 'kat TEXT, typ TEXT, name TEXT, entf_m INTEGER, im_innen INTEGER, osm_id TEXT, quelle TEXT';
-    neueEbene(db, 'infrastruktur', 'POINT', 'ÖPNV, Supermärkte & Bäcker, Kitas & Schulen', spalten);
+    neueEbene(db, 'infrastruktur', 'POINT', 'Ziele im Umkreis (Profil ' + aktivesProfil().name + ')', spalten);
     neueEbene(db, 'parks', 'MULTIPOLYGON', 'Parks (OpenStreetMap)', spalten);
     const quelle = OSM_QUELLE + (window.OSM_DATEN ? ', Stand ' + OSM_DATEN.datenstand : '');
 
@@ -1264,7 +1312,7 @@ gpkgKnopf.addEventListener('click', async function () {
       const g = fund.ort.geometry;
       const werte = {
         kat: p.kat,
-        typ: KATEGORIEN.find(function (k) { return k.id === p.kat; }).name,
+        typ: kategorie(p.kat).name,
         name: p.name || '',
         entf_m: Math.round(fund.entfernung),
         im_innen: fund.entfernung <= einstellungen.radiusInnen ? 1 : 0,
@@ -1672,6 +1720,7 @@ function berechneHeatmap() {
 
   OSM_DATEN.features.forEach(function (ort) {
     const feld = punkte[ort.properties.kat];
+    if (!feld) return;   // Kategorie gehört nicht zum gewählten Profil
     const geo = ort.geometry;
     if (geo.type === 'Point') {
       markiere(feld, zuX(geo.coordinates[0]), zuY(geo.coordinates[1]));
@@ -1706,16 +1755,19 @@ function berechneHeatmap() {
   leinwand.height = zeilen;
   const ctx = leinwand.getContext('2d');
   const bild = ctx.createImageData(spalten, zeilen);
-  const statistik = new Array(9).fill(0);
+  const maximum = KATEGORIEN.length * 2;          // 8 Punkte (4 Kat.) oder 10 (5 Kat.)
+  const statistik = new Array(maximum + 1).fill(0);
   for (let i = 0; i < spalten * zeilen; i++) {
     let summe = 0;
     KATEGORIEN.forEach(function (k) { summe += punkte[k.id][i]; });
     statistik[summe]++;
     if (summe === 0) continue;   // gar nichts erreichbar → durchsichtig
-    const f = HEAT_FARBEN[summe];
+    // auf die Farbskala 1–8 umrechnen (bei 5 Kategorien sind es bis zu 10 Punkte)
+    const stufe = Math.max(1, Math.round(summe / maximum * 8));
+    const f = HEAT_FARBEN[stufe];
     bild.data[i * 4] = f[0]; bild.data[i * 4 + 1] = f[1]; bild.data[i * 4 + 2] = f[2];
     // je besser versorgt, desto kräftiger (schwache Flächen bleiben zurückhaltend)
-    bild.data[i * 4 + 3] = Math.round(255 * (0.3 + 0.7 * summe / 8));
+    bild.data[i * 4 + 3] = Math.round(255 * (0.3 + 0.7 * stufe / 8));
   }
   ctx.putImageData(bild, 0, 0);
 
@@ -1772,6 +1824,56 @@ const HeatSteuerung = L.Control.extend({
   }
 });
 new HeatSteuerung().addTo(map);
+
+// ------------------------------------------------------------
+// Zielgruppen-Profile umschalten (Alltag, Familie, Senioren, Studierende)
+// ------------------------------------------------------------
+function aktivesProfil() {
+  return PROFILE.find(function (p) { return p.id === einstellungen.profil; }) || PROFILE[0];
+}
+
+// Legende auf der Karte: nur die Kategorien des aktiven Profils
+function baueLegende() {
+  const ende = document.getElementById('legende-kategorien-ende');
+  document.querySelectorAll('.legende-kat').forEach(function (li) { li.remove(); });
+  KATEGORIEN.forEach(function (kat) {
+    const li = document.createElement('li');
+    li.className = 'legende-kat';
+    li.innerHTML = '<span class="legende-symbol">' + symbolSvg(kat.id) + '</span>' + kat.kurz;
+    ende.parentNode.insertBefore(li, ende);
+  });
+}
+
+function zeigeProfil() {
+  const p = aktivesProfil();
+  document.querySelectorAll('.profil-knopf').forEach(function (knopf) {
+    const an = knopf.dataset.profil === p.id;
+    knopf.classList.toggle('aktiv', an);
+    knopf.setAttribute('aria-checked', an ? 'true' : 'false');
+  });
+  document.getElementById('profil-name').textContent = p.name;
+  document.querySelectorAll('.profil-knopf').forEach(function (knopf) {
+    const profil = PROFILE.find(function (x) { return x.id === knopf.dataset.profil; });
+    knopf.title = profil.text;   // Erklärung beim Darüberfahren
+  });
+}
+
+function waehleProfil(id) {
+  if (id === einstellungen.profil) return;
+  einstellungen.profil = id;
+  speichereEinstellungen();
+  KATEGORIEN = kategorienVon(id);
+  zeigeProfil();
+  baueLegende();
+  if (heatAn) zeigeHeatmap();                         // Versorgungskarte neu rechnen
+  if (letzterPunkt) analysiereStandort(letzterPunkt); // Bewertung neu
+}
+
+document.querySelectorAll('.profil-knopf').forEach(function (knopf) {
+  knopf.addEventListener('click', function () { waehleProfil(knopf.dataset.profil); });
+});
+zeigeProfil();
+baueLegende();
 
 // Beim Laden der Seite einmal anwenden (gespeicherte Einstellungen)
 wendeDarstellungAn();

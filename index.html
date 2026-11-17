@@ -24,10 +24,8 @@
         <!-- Texte werden von script.js passend zu den eingestellten Radien gesetzt -->
         <li><span class="swatch swatch-400"></span><span id="legende-innen">400 m</span> <span class="mono" id="legende-innen-min">≈ 5 Min.</span></li>
         <li><span class="swatch swatch-800"></span><span id="legende-aussen">800 m</span> <span class="mono" id="legende-aussen-min">≈ 10 Min.</span></li>
-        <li><span class="legende-symbol"><span data-symbol="oepnv"></span></span>ÖPNV-Haltepunkt</li>
-        <li><span class="legende-symbol"><span data-symbol="versorgung"></span></span>Supermarkt / Bäcker</li>
-        <li><span class="legende-symbol"><span data-symbol="bildung"></span></span>Kita / Schule</li>
-        <li><span class="legende-symbol"><span data-symbol="gruen"></span></span>Park</li>
+        <!-- Kategorien je nach Profil: werden von script.js eingefügt -->
+        <li id="legende-kategorien-ende" hidden></li>
         <!-- nur sichtbar, wenn die Versorgungskarte an ist -->
         <li id="legende-heat" class="legende-heat" hidden>
           <span class="heat-verlauf"></span>
@@ -54,6 +52,16 @@
       <p class="anmerkung" id="suche-status"></p>
     </form>
 
+    <!-- Zielgruppe: bestimmt, welche Kategorien in die Bewertung eingehen -->
+    <section id="profil">
+      <div class="profil-segment" role="radiogroup" aria-label="Zielgruppe">
+        <button type="button" role="radio" class="profil-knopf" data-profil="alltag">Alltag</button>
+        <button type="button" role="radio" class="profil-knopf" data-profil="familie">Familie</button>
+        <button type="button" role="radio" class="profil-knopf" data-profil="senioren">Senioren</button>
+        <button type="button" role="radio" class="profil-knopf" data-profil="studierende">Studierende</button>
+      </div>
+    </section>
+
     <!-- Hinweis: verschwindet, sobald ein Standort analysiert wurde -->
     <section class="hint" id="hinweis">
       <p>Oder klicke auf einen beliebigen Punkt der Karte, um die fußläufigen Einzugsbereiche anzuzeigen.</p>
@@ -63,7 +71,7 @@
     <section id="kennzahlen" hidden>
       <!-- 1) Ergebnis zuerst: die 15-Minuten-Bewertung, groß -->
       <div class="ergebnis" id="ergebnis">
-        <p class="label"><span class="nr">01</span>15-Minuten-Bewertung</p>
+        <p class="label"><span class="nr">01</span>15-Minuten-Bewertung · <span id="profil-name">Alltag</span></p>
 
         <!-- Ganze Zeile ist ein Knopf: Klick klappt die Aufschlüsselung auf -->
         <button type="button" class="ergebnis-zeile" id="bewertung-knopf"
