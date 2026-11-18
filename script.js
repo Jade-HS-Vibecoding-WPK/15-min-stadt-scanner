@@ -406,7 +406,7 @@ function ladeNetz() {
   netzLaedt = true;
   zeigeNetzStatus();
   const skript = document.createElement('script');
-  skript.src = 'daten/oldenburg-wege.js?v=2026-11-18';   // Versionsnummer wie in index.html
+  skript.src = 'daten/oldenburg-wege.js?v=2026-11-18e';   // Versionsnummer wie in index.html
   skript.onload = function () {
     baueNetz(window.WEGE_NETZ);
     window.WEGE_NETZ = null;   // Rohdaten freigeben
@@ -2309,7 +2309,7 @@ const HeatSteuerung = L.Control.extend({
     heatKnopf.setAttribute('aria-pressed', 'false');
     heatKnopf.innerHTML = '<span class="heat-symbol" aria-hidden="true"></span><span data-en="Access map">Versorgungskarte</span>';
     L.DomEvent.disableClickPropagation(heatKnopf);
-    L.DomEvent.on(heatKnopf, 'click', schalteHeatmap);
+    L.DomEvent.on(heatKnopf, 'click', function (e) { L.DomEvent.stop(e); schalteHeatmap(); });
     return heatKnopf;
   }
 });
@@ -2322,8 +2322,16 @@ const FussSteuerung = L.Control.extend({
   onAdd: function () {
     fussKnopf = L.DomUtil.create('button', 'heat-knopf fuss-knopf');
     fussKnopf.type = 'button';
+    // Inhalt einmal anlegen; später nur Text und Linie ändern (nicht neu
+    // aufbauen – sonst "verliert" die Karte den Knopf und nimmt den Klick
+    // als Klick auf die Karte, setzt also einen neuen Standort)
+    fussKnopf.innerHTML = '<svg class="fuss-symbol" viewBox="0 0 18 18" aria-hidden="true"><path/>' +
+      '<circle cx="3" cy="15" r="2"/><circle cx="15" cy="4" r="2"/></svg><span></span>';
     L.DomEvent.disableClickPropagation(fussKnopf);
-    L.DomEvent.on(fussKnopf, 'click', schalteWege);
+    L.DomEvent.on(fussKnopf, 'click', function (e) {
+      L.DomEvent.stop(e);   // Klick endet hier – geht nicht an die Karte
+      schalteWege();
+    });
     return fussKnopf;
   }
 });
@@ -2334,10 +2342,10 @@ function zeigeFussKnopf() {
   fussKnopf.classList.toggle('aktiv', an);
   fussKnopf.setAttribute('aria-pressed', an ? 'true' : 'false');
   // kleines Symbol: Weg mit Knick (Fußweg) bzw. gerade Linie (Luftlinie)
-  fussKnopf.innerHTML = '<svg class="fuss-symbol" viewBox="0 0 18 18" aria-hidden="true">' +
-    (an ? '<path d="M3 15 L3 9 L9 9 L9 4 L15 4"/>' : '<path d="M3 15 L15 4" stroke-dasharray="2 2.5"/>') +
-    '<circle cx="3" cy="15" r="2"/><circle cx="15" cy="4" r="2"/></svg>' +
-    '<span>' + (an ? tx('Fußwege', 'Walking routes') : tx('Luftlinie', 'Straight line')) + '</span>';
+  const linie = fussKnopf.querySelector('path');
+  linie.setAttribute('d', an ? 'M3 15 L3 9 L9 9 L9 4 L15 4' : 'M3 15 L15 4');
+  if (an) linie.removeAttribute('stroke-dasharray'); else linie.setAttribute('stroke-dasharray', '2 2.5');
+  fussKnopf.querySelector('span').textContent = an ? tx('Fußwege', 'Walking routes') : tx('Luftlinie', 'Straight line');
   fussKnopf.title = an
     ? tx('Entfernungen entlang echter Fußwege – klicken für Luftlinie', 'Distances along real walking routes – click for straight line')
     : tx('Entfernungen als Luftlinie – klicken für echte Fußwege', 'Straight-line distances – click for real walking routes');
@@ -2564,7 +2572,7 @@ const VergleichSteuerung = L.Control.extend({
     knopf.type = 'button';
     knopf.title = tx('Gemerkte Varianten vergleichen', 'Compare saved sites');
     L.DomEvent.disableClickPropagation(knopf);
-    L.DomEvent.on(knopf, 'click', function () { zeigeVergleich(vergleichFenster.hidden); });
+    L.DomEvent.on(knopf, 'click', function (e) { L.DomEvent.stop(e); zeigeVergleich(vergleichFenster.hidden); });
     this.knopf = knopf;
     return knopf;
   },
