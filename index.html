@@ -14,7 +14,7 @@
   <!-- Unser eigenes Design.
        "?v=…" = Versionsnummer: nach jeder Änderung hochzählen (Datum),
        damit Handys und Browser nicht die alte Datei aus dem Zwischenspeicher nehmen -->
-  <link rel="stylesheet" href="style.css?v=2026-11-18e">
+  <link rel="stylesheet" href="style.css?v=2026-11-18f">
 </head>
 <body>
 
@@ -83,7 +83,8 @@
 
     <!-- Hinweis: verschwindet, sobald ein Standort analysiert wurde -->
     <section class="hint" id="hinweis">
-      <p data-en="Or click anywhere on the map to see what is within walking distance.">Oder klicke auf einen beliebigen Punkt der Karte, um die fußläufigen Einzugsbereiche anzuzeigen.</p>
+      <p class="nur-gross" data-en="Or click anywhere on the map to see what is within walking distance.">Oder klicke auf einen beliebigen Punkt der Karte, um die fußläufigen Einzugsbereiche anzuzeigen.</p>
+      <p class="nur-handy" data-en="Or tap anywhere on the map.">Oder tippe auf einen Punkt der Karte.</p>
     </section>
 
     <!-- Kennzahlen: erst sichtbar, wenn ein Punkt angeklickt wurde -->
@@ -251,7 +252,7 @@
   <!-- jsPDF: erstellt PDF-Dateien direkt im Browser (für das Planblatt) -->
   <script src="https://unpkg.com/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
   <!-- OpenStreetMap-Auszug für Oldenburg (Haltestellen, Supermärkte, Kitas, Parks) -->
-  <script src="daten/oldenburg-osm.js?v=2026-11-18e"></script>
-  <script src="script.js?v=2026-11-18e"></script>
+  <script src="daten/oldenburg-osm.js?v=2026-11-18f"></script>
+  <script src="script.js?v=2026-11-18f"></script>
 </body>
 </html>

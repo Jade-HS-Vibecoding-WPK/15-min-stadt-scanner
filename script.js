@@ -406,7 +406,7 @@ function ladeNetz() {
   netzLaedt = true;
   zeigeNetzStatus();
   const skript = document.createElement('script');
-  skript.src = 'daten/oldenburg-wege.js?v=2026-11-18e';   // Versionsnummer wie in index.html
+  skript.src = 'daten/oldenburg-wege.js?v=2026-11-18f';   // Versionsnummer wie in index.html
   skript.onload = function () {
     baueNetz(window.WEGE_NETZ);
     window.WEGE_NETZ = null;   // Rohdaten freigeben
@@ -1360,8 +1360,8 @@ function verdeckterRand() {
   const r = { left: panel.offsetLeft, top: panel.offsetTop };
   let rand;
   if (istHandy()) {
-    // Handy: immer mit dem kleinen Blatt rechnen (44 % der Höhe + Rand)
-    return { rechts: 0, unten: Math.round(window.innerHeight * 0.44) + 16 };
+    // Handy: immer mit dem kleinen Blatt rechnen (38 % der Höhe, mind. 300 px)
+    return { rechts: 0, unten: Math.max(300, Math.round(window.innerHeight * 0.38)) + 12 };
   }
   if (r.top > window.innerHeight / 3) {
     rand = { rechts: 0, unten: window.innerHeight - r.top };
@@ -2726,17 +2726,30 @@ function setzeBlatt(gross) {
 }
 blattGriff.addEventListener('click', function () { setzeBlatt(!panelElement.classList.contains('gross')); });
 
-// Wischen auf dem Griff: nach oben = groß, nach unten = klein
+// Wischen auf dem Griff oder dem Kopf des Blatts: nach oben = groß, nach unten = klein
 let wischStart = null;
-blattGriff.addEventListener('touchstart', function (e) { wischStart = e.touches[0].clientY; }, { passive: true });
-blattGriff.addEventListener('touchend', function (e) {
-  if (wischStart === null) return;
-  const weg = e.changedTouches[0].clientY - wischStart;
-  wischStart = null;
-  if (Math.abs(weg) < 20) return;          // kurzes Tippen → "click" übernimmt
-  e.preventDefault();                       // kein zusätzlicher Klick
-  setzeBlatt(weg < 0);
+[blattGriff, panelElement.querySelector('header')].forEach(function (flaeche) {
+  flaeche.addEventListener('touchstart', function (e) { wischStart = e.touches[0].clientY; }, { passive: true });
+  flaeche.addEventListener('touchend', function (e) {
+    if (wischStart === null) return;
+    const weg = e.changedTouches[0].clientY - wischStart;
+    wischStart = null;
+    if (Math.abs(weg) < 20) return;          // kurzes Tippen → "click" übernimmt
+    if (e.cancelable) e.preventDefault();     // kein zusätzlicher Klick
+    setzeBlatt(weg < 0);
+  });
 });
+
+// Wischen im Blatt nach unten, wenn es schon ganz oben steht → klein
+let blattStart = null;
+panelElement.addEventListener('touchstart', function (e) {
+  blattStart = panelElement.scrollTop === 0 ? e.touches[0].clientY : null;
+}, { passive: true });
+panelElement.addEventListener('touchend', function (e) {
+  if (blattStart === null || !panelElement.classList.contains('gross')) return;
+  if (e.changedTouches[0].clientY - blattStart > 60) setzeBlatt(false);
+  blattStart = null;
+}, { passive: true });
 
 // Wer auf dem Handy die Aufschlüsselung öffnet, braucht Platz → Blatt groß
 document.getElementById('bewertung-knopf').addEventListener('click', function () {

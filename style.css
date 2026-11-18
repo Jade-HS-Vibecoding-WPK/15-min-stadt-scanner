@@ -1340,58 +1340,94 @@ path.weg-ziel  { animation: einblenden 0.4s var(--weich) 0.1s both; }
 /* ===== 14. Schmale Bildschirme (Handy): Panel als Blatt unten ===== */
 .blatt-griff { display: none; }   /* Griff nur auf dem Handy */
 
+.nur-handy { display: none; }
+
 @media (max-width: 700px) {
-  /* Blatt unten (wie bei Apple Karten): klein = Karte gut sichtbar,
-     groß = alle Details. Umschalten per Griff (tippen oder wischen). */
+  /* Höhe des kleinen Blatts: so hoch, dass die Bewertung ganz zu sehen ist */
+  :root { --blatt-klein: max(300px, 38dvh); }
+
+  /* Blatt unten (wie bei Apple Karten): klein = Karte + Bewertung,
+     groß = alle Details. Umschalten: Griff tippen oder Blatt wischen. */
   #panel {
     top: auto;
-    left: 8px;
-    right: 8px;
-    bottom: calc(8px + env(safe-area-inset-bottom));   /* Abstand zur iPhone-Leiste */
+    left: 6px;
+    right: 6px;
+    bottom: calc(6px + env(safe-area-inset-bottom));   /* Abstand zur iPhone-Leiste */
     width: auto;
-    max-height: 44vh;
-    max-height: 44dvh;
-    padding: 4px 18px 14px;
-    gap: 12px;
-    border-radius: 20px;
-    transition: max-height 0.4s var(--weich);
+    max-height: var(--blatt-klein);
+    padding: 2px 16px 14px;
+    gap: 10px;
+    border-radius: 22px;
+    transition: max-height 0.45s cubic-bezier(0.32, 0.72, 0, 1);
   }
-  #panel.gross { max-height: 86vh; max-height: 86dvh; }
+  #panel.gross { max-height: 88vh; max-height: 88dvh; }
 
   .blatt-griff {
     display: flex;
     justify-content: center;
     flex-shrink: 0;
     width: 100%;
-    margin-bottom: -6px;
-    padding: 6px 0 4px;
+    margin-bottom: -4px;
+    padding: 8px 0 6px;
     border: none;
     background: none;
     touch-action: none;
   }
-  .blatt-griff span { width: 38px; height: 5px; border-radius: 3px; background: rgba(60, 60, 67, 0.3); }
+  .blatt-griff span { width: 40px; height: 5px; border-radius: 3px; background: rgba(60, 60, 67, 0.3); }
 
-  /* Kopf kompakter */
-  #panel header .label { margin-bottom: 4px; }
-  h1 { font-size: 24px; }
+  /* Kopf in einer Zeile: Titel links, DE | EN rechts (Ort steht im Titel-Tab) */
+  #panel header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  #panel header .kopf-zeile { order: 2; }
+  #panel header .kopf-zeile .label { display: none; }
+  #panel header .sprache { margin-top: 0; }
+  h1 { font-size: 21px; }
 
   /* iPhone zoomt beim Tippen in Felder unter 16 px hinein – deshalb 16 px */
   #suche-eingabe { font-size: 16px; }
+  .suche-zeile { padding: 4px 4px 4px 14px; }
+  #suche-knopf { width: 34px; height: 34px; }
+
+  /* Größere Tippflächen (mind. ca. 36–40 px hoch) */
+  .profil-knopf { padding: 9px 2px; font-size: 12.5px; }
+  .export-link { padding: 10px 4px; }
+  #darstellung-knopf { padding: 11px 12px; }
+  .stepper-knopf { width: 36px; height: 36px; }
+
+  .nur-gross { display: none; }
+  .nur-handy { display: block; }
+
+  /* Karte: Zoom per zwei Finger → keine +/− Knöpfe. Die übrigen Knöpfe
+     als kleine Leiste oben (wie Filter-Chips in Karten-Apps) */
+  .leaflet-control-zoom { display: none; }
+  .leaflet-top.leaflet-left {
+    top: calc(env(safe-area-inset-top) + 8px);
+    left: 8px;
+    right: 8px;
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .leaflet-top.leaflet-left .leaflet-control { margin: 0 !important; float: none; }
+  .heat-knopf { flex-shrink: 0; padding: 6px 11px 6px 7px; gap: 6px; font-size: 12px; }
+  .fuss-knopf, .vergleich-knopf { margin-top: 0 !important; }
+  .heat-symbol, .fuss-symbol { width: 16px; height: 16px; }
 
   .legend { display: none; }
   .leaflet-right { right: 0; }
-  .leaflet-bottom.leaflet-right { bottom: calc(44dvh + 14px); }
+  .leaflet-bottom.leaflet-right { bottom: calc(var(--blatt-klein) + 12px); }
 
   /* Fenster (Darstellung, Vergleich) als Blatt über dem Panel */
   .glas-fenster,
   .glas-fenster.vergleich-fenster {
-    left: 8px;
-    right: 8px;
-    bottom: calc(8px + env(safe-area-inset-bottom));
+    left: 6px;
+    right: 6px;
+    bottom: calc(6px + env(safe-area-inset-bottom));
     width: auto;
-    max-height: 80dvh;
+    max-height: 82dvh;
     overflow-y: auto;
     z-index: 1003;
+    border-radius: 22px;
   }
   .vgl-tabelle tbody th, .vgl-tabelle thead th:first-child { width: 92px; }
   .vgl-tabelle tbody th .sym { display: none; }
