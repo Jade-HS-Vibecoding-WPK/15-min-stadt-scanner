@@ -406,7 +406,7 @@ function ladeNetz() {
   netzLaedt = true;
   zeigeNetzStatus();
   const skript = document.createElement('script');
-  skript.src = 'daten/oldenburg-wege.js';
+  skript.src = 'daten/oldenburg-wege.js?v=2026-11-18';   // Versionsnummer wie in index.html
   skript.onload = function () {
     baueNetz(window.WEGE_NETZ);
     window.WEGE_NETZ = null;   // Rohdaten freigeben

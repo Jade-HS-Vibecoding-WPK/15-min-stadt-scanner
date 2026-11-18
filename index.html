@@ -11,8 +11,10 @@
   <!-- crossorigin: erlaubt dem PNG-Export, diese Datei auszulesen -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="anonymous">
 
-  <!-- Unser eigenes Design -->
-  <link rel="stylesheet" href="style.css">
+  <!-- Unser eigenes Design.
+       "?v=…" = Versionsnummer: nach jeder Änderung hochzählen (Datum),
+       damit Handys und Browser nicht die alte Datei aus dem Zwischenspeicher nehmen -->
+  <link rel="stylesheet" href="style.css?v=2026-11-18">
 </head>
 <body>
 
@@ -249,7 +251,7 @@
   <!-- jsPDF: erstellt PDF-Dateien direkt im Browser (für das Planblatt) -->
   <script src="https://unpkg.com/jspdf@4.2.1/dist/jspdf.umd.min.js"></script>
   <!-- OpenStreetMap-Auszug für Oldenburg (Haltestellen, Supermärkte, Kitas, Parks) -->
-  <script src="daten/oldenburg-osm.js"></script>
-  <script src="script.js"></script>
+  <script src="daten/oldenburg-osm.js?v=2026-11-18"></script>
+  <script src="script.js?v=2026-11-18"></script>
 </body>
 </html>
