@@ -17,7 +17,8 @@ const STANDARD = {
   radiusInnen: 400,        // Meter (≈ 5 Min.)
   radiusAussen: 800,       // Meter (≈ 10 Min.)
   profil: 'alltag',        // Zielgruppe: alltag, familie, senioren, studierende
-  sprache: 'de'            // 'de' = Deutsch, 'en' = Englisch
+  sprache: 'de',           // 'de' = Deutsch, 'en' = Englisch
+  wege: 'fuss'             // 'fuss' = echte Fußwege, 'luft' = Luftlinie
 };
 const SPEICHER_NAME = 'stadtScannerEinstellungen-v3';   // v3: Apple-Farben
 let einstellungen = ladeEinstellungen();
@@ -34,6 +35,7 @@ function pruefeEinstellungen(e) {
   if (['grau', 'farbig', 'dunkel'].indexOf(e.kartenstil) < 0) e.kartenstil = STANDARD.kartenstil;
   if (['alltag', 'familie', 'senioren', 'studierende'].indexOf(e.profil) < 0) e.profil = STANDARD.profil;
   if (['de', 'en'].indexOf(e.sprache) < 0) e.sprache = STANDARD.sprache;
+  if (['fuss', 'luft'].indexOf(e.wege) < 0) e.wege = STANDARD.wege;
   e.deckkraft = Math.min(0.5, Math.max(0, Number(e.deckkraft) || 0));
   e.radiusInnen = Math.round(Number(e.radiusInnen)) || STANDARD.radiusInnen;
   e.radiusAussen = Math.round(Number(e.radiusAussen)) || STANDARD.radiusAussen;
@@ -160,9 +162,14 @@ let kreisAussen = null;   // später umfärben kann
 // Kreise und Standort-Punkt in der aktuellen Akzentfarbe einfärben
 function faerbeKreise() {
   const farbe = einstellungen.farbe;
-  if (kreisAussen) kreisAussen.setStyle({ color: farbe });
-  if (kreisInnen) kreisInnen.setStyle({ color: farbe, fillColor: farbe, fillOpacity: einstellungen.deckkraft });
+  // Mit Fußwegen zeigen die Wege die Reichweite – die Kreise (Luftlinie)
+  // bleiben nur noch als feine Orientierung im Hintergrund
+  const fuss = typeof aktuelleSuche !== 'undefined' && aktuelleSuche !== null;
+  if (kreisAussen) kreisAussen.setStyle({ color: farbe, opacity: fuss ? 0.35 : 1 });
+  if (kreisInnen) kreisInnen.setStyle({ color: farbe, fillColor: farbe, opacity: fuss ? 0.35 : 1,
+    fillOpacity: fuss ? einstellungen.deckkraft * 0.4 : einstellungen.deckkraft });
   if (standortMarker) standortMarker.setStyle({ fillColor: farbe });
+  if (typeof netzEbene !== 'undefined' && netzEbene) netzEbene.eachLayer(function (l) { l.setStyle({ color: farbe }); });
 }
 
 // Kleines SVG-Symbol einer Kategorie: kräftige Füllung + weißer Rand.
@@ -311,6 +318,10 @@ function analysiereStandort(punkt) {
     interactive: false
   }).addTo(analyse);
 
+  // Fußwege: kürzeste Wege vom Standort berechnen und erreichbare Wege zeichnen
+  aktuelleSuche = fussModus() ? netzSuche(punkt) : null;
+  zeichneNetz(aktuelleSuche);
+
   faerbeKreise();   // Farbe + Deckkraft aus den Einstellungen anwenden
 
   // Karte so zoomen, dass der große Kreis ganz zu sehen ist –
@@ -369,6 +380,248 @@ function analysiereStandort(punkt) {
 }
 
 // ------------------------------------------------------------
+// Echte Fußwege statt Luftlinie
+//   Das Wegenetz (daten/oldenburg-wege.js) besteht aus Knoten
+//   (Kreuzungen und Kurvenpunkte) und Kanten (Wegstücke dazwischen).
+//   Vom Standort aus sucht die App – wie ein Navi für Fußgänger – den
+//   kürzesten Weg zu jedem Knoten (Dijkstra-Verfahren). So ergibt sich
+//   für jedes Ziel die echte Entfernung entlang von Straßen und Wegen.
+// ------------------------------------------------------------
+let netz = null;          // aufbereitetes Netz (wird einmal geladen)
+let netzLaedt = false;
+let aktuelleSuche = null; // Ergebnis der Wegsuche für den aktuellen Standort
+const NETZ_MAX = 3000;    // so weit (Meter Fußweg) wird höchstens gesucht
+
+// Ist der Fußweg-Modus an UND das Netz geladen?
+function fussModus() { return einstellungen.wege === 'fuss' && netz !== null; }
+
+// Gehzeit in Minuten: bei Fußwegen direkt, bei Luftlinie mit Umwegfaktor
+function gehMinuten(meter) {
+  return meter * (einstellungen.wege === 'fuss' ? 1 : UMWEGFAKTOR) / GEHTEMPO_M_PRO_MIN;
+}
+
+// Netz-Datei nachladen (nur einmal, im Hintergrund)
+function ladeNetz() {
+  if (netz || netzLaedt) return;
+  netzLaedt = true;
+  zeigeNetzStatus();
+  const skript = document.createElement('script');
+  skript.src = 'daten/oldenburg-wege.js';
+  skript.onload = function () {
+    baueNetz(window.WEGE_NETZ);
+    window.WEGE_NETZ = null;   // Rohdaten freigeben
+    netzLaedt = false;
+    zeigeNetzStatus();
+    // Gibt es schon einen Standort? Dann jetzt mit Fußwegen neu rechnen
+    if (letzterPunkt && einstellungen.wege === 'fuss') analysiereStandort(letzterPunkt);
+  };
+  skript.onerror = function () { netzLaedt = false; zeigeNetzStatus(true); };
+  document.head.appendChild(skript);
+}
+
+// Rohdaten → schnelle Tabellen: Koordinaten, Nachbarn, Längen, Suchraster
+const NETZ_LAT0 = 53.14;
+const NETZ_MX = 111320 * Math.cos(NETZ_LAT0 * Math.PI / 180);  // Meter pro Grad Länge
+const NETZ_MY = 111320;                                         // Meter pro Grad Breite
+function baueNetz(roh) {
+  const n = roh.knoten.length / 2;
+  const lng = new Float64Array(n), lat = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    lng[i] = (roh.ursprung[0] + roh.knoten[2 * i]) / 1e5;
+    lat[i] = (roh.ursprung[1] + roh.knoten[2 * i + 1]) / 1e5;
+  }
+  // Nachbarliste (kompakt): für Knoten i stehen die Nachbarn in
+  // nachbarn[start[i] … start[i+1]-1], die Längen in laenge[…]
+  const grad = new Int32Array(n + 1);
+  const k = roh.kanten;
+  for (let j = 0; j < k.length; j++) grad[k[j] + 1]++;
+  for (let i = 0; i < n; i++) grad[i + 1] += grad[i];
+  const start = grad.slice();
+  const pos = grad.slice();
+  const nachbarn = new Int32Array(k.length);
+  const laenge = new Float32Array(k.length);
+  for (let j = 0; j < k.length; j += 2) {
+    const a = k[j], b = k[j + 1];
+    const m = Math.hypot((lng[a] - lng[b]) * NETZ_MX, (lat[a] - lat[b]) * NETZ_MY);
+    nachbarn[pos[a]] = b; laenge[pos[a]++] = m;
+    nachbarn[pos[b]] = a; laenge[pos[b]++] = m;
+  }
+  // Suchraster (ca. 200 m) zum schnellen Finden des nächsten Knotens
+  const raster = new Map();
+  for (let i = 0; i < n; i++) {
+    const s = rasterSchluessel(lat[i], lng[i]);
+    let liste = raster.get(s);
+    if (!liste) raster.set(s, liste = []);
+    liste.push(i);
+  }
+  netz = { n: n, lng: lng, lat: lat, start: start, nachbarn: nachbarn, laenge: laenge, kanten: k, raster: raster };
+}
+function rasterSchluessel(lat, lng) {
+  return Math.floor(lng * 1e5 / 300) * 100000 + Math.floor(lat * 1e5 / 180);
+}
+
+// Nächster Knoten zu einem Punkt (höchstens maxM Meter entfernt)
+function naechsterKnoten(lat, lng, maxM) {
+  const cx = Math.floor(lng * 1e5 / 300), cy = Math.floor(lat * 1e5 / 180);
+  let beste = -1, besteM = maxM;
+  for (let dx = -2; dx <= 2; dx++) {
+    for (let dy = -2; dy <= 2; dy++) {
+      const liste = netz.raster.get((cx + dx) * 100000 + cy + dy);
+      if (!liste) continue;
+      for (let j = 0; j < liste.length; j++) {
+        const i = liste[j];
+        const m = Math.hypot((netz.lng[i] - lng) * NETZ_MX, (netz.lat[i] - lat) * NETZ_MY);
+        if (m < besteM) { besteM = m; beste = i; }
+      }
+    }
+  }
+  return beste < 0 ? null : { id: beste, m: besteM };
+}
+
+// Kürzeste Wege vom Standort zu allen Knoten bis NETZ_MAX Meter (Dijkstra)
+function netzSuche(punkt) {
+  if (!netz) return null;
+  const s = naechsterKnoten(punkt.lat, punkt.lng, 400);
+  if (!s) return null;   // kein Weg in der Nähe → Luftlinie verwenden
+  const dist = new Float64Array(netz.n).fill(Infinity);
+  const vor = new Int32Array(netz.n).fill(-1);
+  dist[s.id] = s.m;   // Weg vom Standort zum ersten Knoten zählt mit
+  // Prioritätswarteschlange (kleinste Entfernung zuerst) als Binär-Heap
+  const heapK = [s.id], heapD = [s.m];
+  function rein(knoten, d) {
+    let i = heapK.length; heapK.push(knoten); heapD.push(d);
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (heapD[p] <= d) break;
+      heapK[i] = heapK[p]; heapD[i] = heapD[p]; i = p;
+    }
+    heapK[i] = knoten; heapD[i] = d;
+  }
+  function raus() {
+    const k = heapK[0], d = heapD[0];
+    const lk = heapK.pop(), ld = heapD.pop();
+    if (heapK.length) {
+      let i = 0;
+      for (;;) {
+        let c = 2 * i + 1;
+        if (c >= heapK.length) break;
+        if (c + 1 < heapK.length && heapD[c + 1] < heapD[c]) c++;
+        if (heapD[c] >= ld) break;
+        heapK[i] = heapK[c]; heapD[i] = heapD[c]; i = c;
+      }
+      heapK[i] = lk; heapD[i] = ld;
+    }
+    return [k, d];
+  }
+  while (heapK.length) {
+    const [k, d] = raus();
+    if (d > dist[k] || d > NETZ_MAX) continue;
+    for (let j = netz.start[k]; j < netz.start[k + 1]; j++) {
+      const nb = netz.nachbarn[j], nd = d + netz.laenge[j];
+      if (nd < dist[nb]) { dist[nb] = nd; vor[nb] = k; rein(nb, nd); }
+    }
+  }
+  return { punkt: punkt, start: s.id, dist: dist, vor: vor };
+}
+
+// Ziele ans Netz "andocken": nächste Knoten merken (einmal je Ort)
+function andockStellen(ort) {
+  if (ort._netz) return ort._netz;
+  const geo = ort.geometry;
+  let punkte;
+  if (geo.type === 'Point') punkte = [geo.coordinates];
+  else {
+    const polygone = geo.type === 'Polygon' ? [geo.coordinates] : geo.coordinates;
+    punkte = [];
+    polygone.forEach(function (poly) { poly[0].forEach(function (e) { punkte.push(e); }); });
+  }
+  const stellen = [];
+  punkte.forEach(function (c) {
+    const k = naechsterKnoten(c[1], c[0], 300);
+    if (k) stellen.push({ id: k.id, m: k.m, lage: L.latLng(c[1], c[0]) });
+  });
+  ort._netz = stellen;
+  return stellen;
+}
+
+// Fußweg-Entfernung zu einem Ort (wie naechsteStelle, aber entlang der Wege)
+function netzStelle(ort, punkt, suche) {
+  const geo = ort.geometry;
+  if (geo.type !== 'Point') {
+    const polygone = geo.type === 'Polygon' ? [geo.coordinates] : geo.coordinates;
+    for (let i = 0; i < polygone.length; i++) {
+      if (punktInPolygon(punkt, polygone[i])) return { entfernung: 0, lage: punkt, knoten: suche.start };
+    }
+  }
+  let beste = null;
+  andockStellen(ort).forEach(function (st) {
+    const d = suche.dist[st.id] + st.m;
+    if (!beste || d < beste.entfernung) beste = { entfernung: d, lage: st.lage, knoten: st.id };
+  });
+  if (beste && beste.entfernung !== Infinity) return beste;
+  // nicht über das Netz erreichbar (zu weit / kein Weg): Luftlinie × Umwegfaktor
+  const luft = naechsteStelle(ort, punkt);
+  return { entfernung: luft.entfernung * UMWEGFAKTOR, lage: luft.lage, knoten: -1 };
+}
+
+// Weg (Liste von Punkten) vom Standort zu einem Knoten
+function netzWeg(suche, knoten) {
+  const weg = [];
+  let k = knoten, sicher = 0;
+  while (k >= 0 && sicher++ < 20000) {
+    weg.push(L.latLng(netz.lat[k], netz.lng[k]));
+    if (k === suche.start) break;
+    k = suche.vor[k];
+  }
+  weg.push(suche.punkt);
+  return weg.reverse();
+}
+
+// Erreichbare Wege einzeichnen: innen kräftig, außen heller.
+// Wegstücke, die die Grenze überschreiten, werden genau dort abgeschnitten.
+let netzEbene = null;
+function zeichneNetz(suche) {
+  if (netzEbene) { analyse.removeLayer(netzEbene); netzEbene = null; }
+  if (!suche) return;
+  const rI = einstellungen.radiusInnen, rA = einstellungen.radiusAussen;
+  const innen = [], aussen = [];
+  const k = netz.kanten, d = suche.dist;
+  function stueck(a, b, grenze, liste) {
+    const da = d[a], db = d[b];
+    if (da > grenze && db > grenze) return;
+    const A = [netz.lat[a], netz.lng[a]], B = [netz.lat[b], netz.lng[b]];
+    if (da <= grenze && db <= grenze) { liste.push([A, B]); return; }
+    // nur ein Teil liegt innerhalb: bis zur Grenze zeichnen
+    const [nah, fern, dn, df] = da <= grenze ? [A, B, da, db] : [B, A, db, da];
+    const laenge = Math.hypot((nah[1] - fern[1]) * NETZ_MX, (nah[0] - fern[0]) * NETZ_MY);
+    const t = Math.min(1, Math.max(0, (grenze - dn) / (laenge || 1)));
+    if (df === Infinity || dn + laenge > df) {
+      liste.push([nah, [nah[0] + (fern[0] - nah[0]) * t, nah[1] + (fern[1] - nah[1]) * t]]);
+    } else {
+      liste.push([nah, [nah[0] + (fern[0] - nah[0]) * t, nah[1] + (fern[1] - nah[1]) * t]]);
+    }
+  }
+  for (let j = 0; j < k.length; j += 2) {
+    stueck(k[j], k[j + 1], rA, aussen);
+    stueck(k[j], k[j + 1], rI, innen);
+  }
+  const farbe = einstellungen.farbe;
+  netzEbene = L.layerGroup([
+    L.polyline(aussen, { color: farbe, weight: 2, opacity: 0.45, interactive: false, className: 'netz-linie netz-aussen' }),
+    L.polyline(innen, { color: farbe, weight: 3, opacity: 0.95, interactive: false, className: 'netz-linie netz-innen' })
+  ]).addTo(analyse);
+}
+
+// Hinweis im Panel, solange das Netz lädt
+function zeigeNetzStatus(fehler) {
+  const el = document.getElementById('netz-status');
+  if (!el) return;
+  if (fehler) el.textContent = tx('Fußwegenetz konnte nicht geladen werden – es wird mit Luftlinie gerechnet.', 'Walking network could not be loaded – using straight-line distance.');
+  else if (netzLaedt) el.textContent = tx('Fußwegenetz wird geladen …', 'Loading walking network …');
+  else el.textContent = '';
+}
+
+// ------------------------------------------------------------
 // Infrastruktur zählen – aus der mitgelieferten Datei
 // daten/oldenburg-osm.js (OpenStreetMap-Auszug, einmal heruntergeladen).
 // Vorteil: kein Server nötig, sofort fertig, immer verfügbar.
@@ -392,7 +645,7 @@ function zaehleInfrastruktur(punkt) {
     return;
   }
 
-  const ergebnis = zaehle(punkt);
+  const ergebnis = zaehle(punkt, aktuelleSuche);
   ergebnis.gefunden.forEach(function (fund) { zeichneOrt(fund.ort); });
 
   // Ergebnisse ins Panel schreiben (Anzahlen stehen in der Aufschlüsselung)
@@ -408,7 +661,9 @@ function zaehleInfrastruktur(punkt) {
 
 // Reine Rechnung (ohne Zeichnen): zählt die Ziele um einen Punkt.
 //   Wird für den analysierten Standort UND für die Varianten benutzt.
-function zaehle(punkt) {
+function zaehle(punkt, suche) {
+  // Fußweg-Modus: einmal alle Wege vom Standort aus absuchen
+  if (suche === undefined) suche = fussModus() ? netzSuche(punkt) : null;
   const rInnen = einstellungen.radiusInnen;
   const rAussen = einstellungen.radiusAussen;
 
@@ -424,14 +679,15 @@ function zaehle(punkt) {
     const kat = ort.properties.kat;
     if (!zaehler[kat]) return;   // Kategorie gehört nicht zum gewählten Profil
 
-    const stelle = naechsteStelle(ort, punkt);   // Luftlinie in Metern + Zielpunkt
+    // Entfernung: entlang der Fußwege (wenn an) oder Luftlinie
+    const stelle = suche ? netzStelle(ort, punkt, suche) : naechsteStelle(ort, punkt);
     const entfernung = stelle.entfernung;
 
     // Nächstes Ziel dieser Kategorie merken – auch außerhalb der Kreise,
     // damit wir zeigen können, wie weit es bis zum nächsten Ziel ist
     const bisher = zaehler[kat].naechstes;
     if (!bisher || entfernung < bisher.entfernung) {
-      zaehler[kat].naechstes = { name: ort.properties.name || '', entfernung: entfernung, lage: stelle.lage };
+      zaehler[kat].naechstes = { name: ort.properties.name || '', entfernung: entfernung, lage: stelle.lage, knoten: stelle.knoten };
     }
 
     if (entfernung > rAussen) return;
@@ -554,7 +810,7 @@ function zeichneZeitstrahl(b) {
   const feld = document.getElementById('zeitstrahl');
   if (!b) { feld.innerHTML = '<p class="anmerkung">' + tx('Keine Daten für diesen Ort.', 'No data for this place.') + '</p>'; return; }
 
-  const minuten = function (meter) { return meter * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN; };
+  const minuten = gehMinuten;
   const tInnen = minuten(einstellungen.radiusInnen);
   const tAussen = minuten(einstellungen.radiusAussen);
   const MAX = Math.max(15, Math.ceil(tAussen) + 2);   // Achse: 0–15 Min.
@@ -634,7 +890,7 @@ function fuelleAufschluesselung(b) {
       unter = tx('kein Ziel in über 3 km Umkreis', 'nothing within 3 km');
       knopf.disabled = true;
     } else {
-      const min = Math.max(1, Math.round(n.entfernung * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN));
+      const min = Math.max(1, Math.round(gehMinuten(n.entfernung)));
       const name = n.name || tx('ohne Namen', 'unnamed');
       unter = (n.entfernung === 0 ? tx('Standort liegt im Park', 'Site lies within the park') : tx('Nächstes: ', 'Nearest: ') + name) + ' · ' +
               '<span class="mono">' + deutsch(Math.round(n.entfernung), 0) + ' m · ' + min + ' ' + minWort() + '</span>';
@@ -784,7 +1040,7 @@ function ortsListe(d) {
 
   let html = '<p class="ort-summe">' + zusammen + tx(' im Umkreis', ' nearby') + '</p>';
   orte.forEach(function (o, i) {
-    const min = Math.max(1, Math.round(o.entfernung * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN));
+    const min = Math.max(1, Math.round(gehMinuten(o.entfernung)));
     const innen = o.entfernung <= einstellungen.radiusInnen;
     let info = o.typ;
     if (o.anzahl > 1) info += ' · ' + o.anzahl + tx(' Haltepunkte', ' platforms');
@@ -840,11 +1096,18 @@ function zeigeWegZu(schluessel, ziel, farbe, name, entfernung, knopf) {
 
   wegKat = schluessel;
   knopf.classList.add('aktiv');
-  const min = Math.max(1, Math.round(entfernung * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN));
+  const min = Math.max(1, Math.round(gehMinuten(entfernung)));
+
+  // Fußweg-Modus: Linie folgt den echten Wegen; sonst gerade Linie
+  let linie = [letzterPunkt, ziel];
+  if (aktuelleSuche) {
+    const k = naechsterKnoten(ziel.lat, ziel.lng, 300);
+    if (k && aktuelleSuche.dist[k.id] !== Infinity) linie = netzWeg(aktuelleSuche, k.id).concat([ziel]);
+  }
 
   wegEbene = L.layerGroup([
     // Linie Standort → Ziel
-    L.polyline([letzterPunkt, ziel], {
+    L.polyline(linie, {
       color: INK, weight: 2, dashArray: '1 6', lineCap: 'round',
       interactive: false, className: 'weg-linie'
     }),
@@ -1062,19 +1325,22 @@ function zeigeKennzahlen(punkt) {
 //   Fußweg  = Luftlinie × Umwegfaktor
 //   Gehzeit = Fußweg ÷ Gehtempo (m pro Minute)
 function zeigeEinzugsbereiche() {
-  // Kurzfassung der beiden Kreise unter dem Zeitstrahl:
-  // Radius · Gehzeit (mit Umweg) · Fläche
+  // Kurzfassung unter dem Zeitstrahl:
+  //   Fußwege:   "400 m Fußweg ≈ 5,0 Min."
+  //   Luftlinie: "400 m ≈ 6,5 Min. · 50,3 ha" (Kreisfläche, Gehzeit mit Umweg)
+  const fuss = einstellungen.wege === 'fuss';
   const teile = [einstellungen.radiusInnen, einstellungen.radiusAussen].map(function (radius, i) {
-    const hektar = kreisflaeche(radius) / 10000;
-    const gehzeit = radius * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN;
-    return '<span class="zs-kreis zs-kreis-' + (i ? 'aussen' : 'innen') + '"></span>' +
-      deutsch(radius, 0) + ' m ≈ ' + deutsch(gehzeit, 1) + ' ' + minWort() + ' · ' + deutsch(hektar, 1) + ' ha';
+    const anfang = '<span class="zs-kreis zs-kreis-' + (i ? 'aussen' : 'innen') + '"></span>' + deutsch(radius, 0) + ' m';
+    if (fuss) return anfang + tx(' Fußweg ≈ ', ' on foot ≈ ') + deutsch(gehMinuten(radius), 1) + ' ' + minWort();
+    return anfang + ' ≈ ' + deutsch(gehMinuten(radius), 1) + ' ' + minWort() + ' · ' + deutsch(kreisflaeche(radius) / 10000, 1) + ' ha';
   });
   document.getElementById('vergleich-zeilen').innerHTML = teile.join('<br>');
 
-  document.getElementById('vergleich-annahme').textContent =
-    tx('Annahmen: Umwegfaktor ', 'Assumptions: detour factor ') + deutsch(UMWEGFAKTOR, 1) +
-    tx(', Gehtempo ', ', walking speed ') + deutsch(GEHTEMPO_KMH, 1) + ' km/h.';
+  document.getElementById('vergleich-annahme').textContent = fuss
+    ? tx('Entfernungen entlang echter Fußwege (OSM-Wegenetz), Gehtempo ', 'Distances along real walking routes (OSM network), walking speed ') +
+      deutsch(GEHTEMPO_KMH, 1) + ' km/h.'
+    : tx('Annahmen: Luftlinie, Umwegfaktor ', 'Assumptions: straight line, detour factor ') + deutsch(UMWEGFAKTOR, 1) +
+      tx(', Gehtempo ', ', walking speed ') + deutsch(GEHTEMPO_KMH, 1) + ' km/h.';
 }
 
 // ------------------------------------------------------------
@@ -1292,18 +1558,26 @@ pdfKnopf.addEventListener('click', async function () {
     const spalten = [x, x + 38, x + 66, xr];   // Radius | Fläche | Fußweg | Gehzeit
     tabellenKopf(pdf, tx(['Radius', 'Fläche', 'Fußweg ca.', 'Gehzeit ca.'], ['Radius', 'Area', 'Walk approx.', 'Time approx.']), spalten, y);
     y += 6;
+    const fussModusPdf = einstellungen.wege === 'fuss';
     [einstellungen.radiusInnen, einstellungen.radiusAussen].forEach(function (radius) {
-      const fussweg = radius * UMWEGFAKTOR;
+      // Fußwege: Radius IST die Weglänge; Luftlinie: mit Umwegfaktor
+      const fussweg = fussModusPdf ? radius : radius * UMWEGFAKTOR;
       tabellenZeile(pdf, [
         deutsch(radius, 0) + ' m',
-        deutsch(kreisflaeche(radius) / 10000, 1) + ' ha',
+        fussModusPdf ? '–' : deutsch(kreisflaeche(radius) / 10000, 1) + ' ha',
         deutsch(fussweg, 0) + ' m',
         deutsch(fussweg / GEHTEMPO_M_PRO_MIN, 1) + ' ' + minWort()
       ], spalten, x, xr, y);
       y += 7;
     });
-    grauerText(pdf, tx('Annahme: Umwegfaktor ', 'Assumption: detour factor ') + deutsch(UMWEGFAKTOR, 1) +
-      tx(', Gehtempo ', ', walking speed ') + deutsch(GEHTEMPO_KMH, 1) + ' km/h', x, y, false);
+    const annahme = fussModusPdf
+      ? tx('Entfernungen entlang echter Fußwege (OSM-Wegenetz), Gehtempo ', 'Distances along real walking routes (OSM), walking speed ') + deutsch(GEHTEMPO_KMH, 1) + ' km/h'
+      : tx('Annahme: Luftlinie, Umwegfaktor ', 'Assumption: straight line, detour factor ') + deutsch(UMWEGFAKTOR, 1) +
+        tx(', Gehtempo ', ', walking speed ') + deutsch(GEHTEMPO_KMH, 1) + ' km/h';
+    grauerText(pdf, '', x, y, false);   // setzt Schrift klein + grau
+    const annahmeZeilen = pdf.splitTextToSize(annahme, KOPF_B);   // umbrechen statt über den Rand
+    pdf.text(annahmeZeilen, x, y);
+    y += (annahmeZeilen.length - 1) * 3.6;
     y += 12;
 
     // 5) Fußzeile unten im Plankopf: Datum + Quellen (Lizenzpflicht!)
@@ -1746,8 +2020,10 @@ function wendeDarstellungAn() {
   karte.classList.add('stil-' + e.kartenstil);
 
   // Legende an die Radien anpassen
-  document.getElementById('legende-innen').textContent = deutsch(e.radiusInnen, 0) + ' m';
-  document.getElementById('legende-aussen').textContent = deutsch(e.radiusAussen, 0) + ' m';
+  const wegWort = e.wege === 'fuss' ? tx(' Fußweg', ' walk') : '';
+  document.querySelector('.legend').classList.toggle('fuss-modus', e.wege === 'fuss');   // Linie statt Kreis
+  document.getElementById('legende-innen').textContent = deutsch(e.radiusInnen, 0) + ' m' + wegWort;
+  document.getElementById('legende-aussen').textContent = deutsch(e.radiusAussen, 0) + ' m' + wegWort;
   document.getElementById('legende-innen-min').textContent = '≈ ' + deutsch(e.radiusInnen / GEHTEMPO_M_PRO_MIN, 0) + ' ' + minWort();
   document.getElementById('legende-aussen-min').textContent = '≈ ' + deutsch(e.radiusAussen / GEHTEMPO_M_PRO_MIN, 0) + ' ' + minWort();
 
@@ -1766,8 +2042,8 @@ function wendeDarstellungAn() {
   document.getElementById('radius-innen').value = e.radiusInnen;
   document.getElementById('radius-aussen').value = e.radiusAussen;
   // Gehzeit neben den Radien (mit Umwegfaktor, wie im Zeitstrahl)
-  document.getElementById('radius-innen-min').textContent = '≈ ' + deutsch(e.radiusInnen * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN, 1) + ' ' + minWort();
-  document.getElementById('radius-aussen-min').textContent = '≈ ' + deutsch(e.radiusAussen * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN, 1) + ' ' + minWort();
+  document.getElementById('radius-innen-min').textContent = '≈ ' + deutsch(gehMinuten(e.radiusInnen), 1) + ' ' + minWort();
+  document.getElementById('radius-aussen-min').textContent = '≈ ' + deutsch(gehMinuten(e.radiusAussen), 1) + ' ' + minWort();
 
   // Vorhandene Kreise umfärben
   faerbeKreise();
@@ -2029,7 +2305,7 @@ const HeatSteuerung = L.Control.extend({
   onAdd: function () {
     heatKnopf = L.DomUtil.create('button', 'heat-knopf');
     heatKnopf.type = 'button';
-    heatKnopf.title = tx('15-Minuten-Bewertung für ganz Oldenburg einblenden', 'Show the 15-minute score for all of Oldenburg');
+    heatKnopf.title = tx('15-Minuten-Bewertung für ganz Oldenburg einblenden (vereinfacht mit Luftlinie)', 'Show the 15-minute score for all of Oldenburg (simplified, straight line)');
     heatKnopf.setAttribute('aria-pressed', 'false');
     heatKnopf.innerHTML = '<span class="heat-symbol" aria-hidden="true"></span><span data-en="Access map">Versorgungskarte</span>';
     L.DomEvent.disableClickPropagation(heatKnopf);
@@ -2038,6 +2314,44 @@ const HeatSteuerung = L.Control.extend({
   }
 });
 new HeatSteuerung().addTo(map);
+
+// Knopf "Fußwege" auf der Karte: echte Wege ↔ Luftlinie umschalten
+let fussKnopf = null;
+const FussSteuerung = L.Control.extend({
+  options: { position: 'topleft' },
+  onAdd: function () {
+    fussKnopf = L.DomUtil.create('button', 'heat-knopf fuss-knopf');
+    fussKnopf.type = 'button';
+    L.DomEvent.disableClickPropagation(fussKnopf);
+    L.DomEvent.on(fussKnopf, 'click', schalteWege);
+    return fussKnopf;
+  }
+});
+new FussSteuerung().addTo(map);
+
+function zeigeFussKnopf() {
+  const an = einstellungen.wege === 'fuss';
+  fussKnopf.classList.toggle('aktiv', an);
+  fussKnopf.setAttribute('aria-pressed', an ? 'true' : 'false');
+  // kleines Symbol: Weg mit Knick (Fußweg) bzw. gerade Linie (Luftlinie)
+  fussKnopf.innerHTML = '<svg class="fuss-symbol" viewBox="0 0 18 18" aria-hidden="true">' +
+    (an ? '<path d="M3 15 L3 9 L9 9 L9 4 L15 4"/>' : '<path d="M3 15 L15 4" stroke-dasharray="2 2.5"/>') +
+    '<circle cx="3" cy="15" r="2"/><circle cx="15" cy="4" r="2"/></svg>' +
+    '<span>' + (an ? tx('Fußwege', 'Walking routes') : tx('Luftlinie', 'Straight line')) + '</span>';
+  fussKnopf.title = an
+    ? tx('Entfernungen entlang echter Fußwege – klicken für Luftlinie', 'Distances along real walking routes – click for straight line')
+    : tx('Entfernungen als Luftlinie – klicken für echte Fußwege', 'Straight-line distances – click for real walking routes');
+}
+
+function schalteWege() {
+  einstellungen.wege = einstellungen.wege === 'fuss' ? 'luft' : 'fuss';
+  speichereEinstellungen();
+  zeigeFussKnopf();
+  wendeDarstellungAn();   // Gehzeiten bei den Radien
+  if (einstellungen.wege === 'fuss' && !netz) ladeNetz();   // rechnet danach selbst neu
+  if (letzterPunkt) analysiereStandort(letzterPunkt);
+  if (!vergleichFenster.hidden) zeichneVergleich();
+}
 
 // ------------------------------------------------------------
 // Variantenvergleich: bis zu 3 Standorte merken (A, B, C) und
@@ -2160,7 +2474,7 @@ function zeichneVergleich(hinweis) {
 
   const bewertungen = varianten.map(function (v) { return bewerteOrt(L.latLng(v.lat, v.lng)); });
   const minuten = function (d) {
-    return d.naechstes ? d.naechstes.entfernung * UMWEGFAKTOR / GEHTEMPO_M_PRO_MIN : Infinity;
+    return d.naechstes ? gehMinuten(d.naechstes.entfernung) : Infinity;
   };
 
   // Kopfzeile: Buchstabe + Name (Klick = dorthin springen), × = entfernen
@@ -2357,7 +2671,9 @@ function aktualisiereTexte() {
   wendeDarstellungAn();
   vergleichsSteuerung.aktualisiere();
   aktualisiereVarianteKnopf();
-  if (heatKnopf) heatKnopf.title = tx('15-Minuten-Bewertung für ganz Oldenburg einblenden', 'Show the 15-minute score for all of Oldenburg');
+  zeigeFussKnopf();
+  zeigeNetzStatus();
+  if (heatKnopf) heatKnopf.title = tx('15-Minuten-Bewertung für ganz Oldenburg einblenden (vereinfacht mit Luftlinie)', 'Show the 15-minute score for all of Oldenburg (simplified, straight line)');
   document.getElementById('suche-status').textContent = '';
   document.getElementById('export-status').textContent = '';
   if (!vergleichFenster.hidden) zeichneVergleich();
@@ -2423,3 +2739,7 @@ document.getElementById('bewertung-knopf').addEventListener('click', function ()
 wendeDarstellungAn();
 // … und die gespeicherte Sprache
 if (einstellungen.sprache === 'en') aktualisiereTexte(); else wendeSpracheAn();
+
+// Fußwegenetz gleich im Hintergrund laden (falls Fußwege eingestellt sind)
+zeigeFussKnopf();
+if (einstellungen.wege === 'fuss') ladeNetz();

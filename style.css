@@ -792,6 +792,16 @@ h1 {
 .swatch-400 { background: var(--accent-fuellung, rgba(0, 122, 255, 0.15)); }
 .swatch-800 { border-style: dashed; }
 
+/* Fußweg-Modus: Legende zeigt Wegstücke (Linien) statt Kreise */
+.fuss-modus .swatch {
+  height: 4px;
+  margin: 5px 0;
+  border: none;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.fuss-modus .swatch-800 { opacity: 0.45; height: 3px; }
+
 /* Symbol so breit wie die Kreis-Muster, damit die Texte bündig stehen */
 .legende-symbol { display: inline-flex; width: 14px; justify-content: center; }
 
@@ -1116,6 +1126,15 @@ input[type="search"], input[type="number"] { cursor: text; }
 .heat-knopf.aktiv { background: #fff; box-shadow: 0 0 0 2px var(--ink), var(--glas-schatten); }
 .heat-knopf.aktiv .heat-symbol { opacity: 1; }
 .heat-knopf.rechnet .heat-symbol { animation: pulsieren 0.8s ease-in-out infinite; }
+
+/* Knopf "Fußwege / Luftlinie" (gleiche Kapsel) */
+.fuss-knopf { margin-top: 8px !important; }
+.fuss-symbol { width: 18px; height: 18px; fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.fuss-symbol circle { fill: var(--accent); stroke: #fff; stroke-width: 1.2; }
+
+/* Erreichbare Fußwege: blenden nach der Kamerafahrt ein */
+path.netz-linie { animation: einblenden 0.7s var(--weich) 0.1s both; stroke-linecap: round; stroke-linejoin: round; }
+.karte-bewegt path.netz-linie { display: none; }
 
 /* Das Heatmap-Bild: weich gezeichnet und sanft eingeblendet */
 .heatmap { image-rendering: auto; animation: einblenden 0.6s var(--weich) both; }
