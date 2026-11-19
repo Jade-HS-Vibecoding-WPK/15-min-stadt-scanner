@@ -407,7 +407,7 @@ function ladeNetz() {
   netzLaedt = true;
   zeigeNetzStatus();
   const skript = document.createElement('script');
-  skript.src = 'daten/oldenburg-wege.js?v=2026-11-19c';   // Versionsnummer wie in index.html
+  skript.src = 'daten/oldenburg-wege.js?v=2026-11-19d';   // Versionsnummer wie in index.html
   skript.onload = function () {
     OLDENBURG.netz = baueNetz(window.WEGE_NETZ, NETZ_LAT0);
     if (aktivesGebiet === OLDENBURG) netz = OLDENBURG.netz;
@@ -3017,17 +3017,56 @@ function setzeBlatt(gross) {
 }
 blattGriff.addEventListener('click', function () { setzeBlatt(!panelElement.classList.contains('gross')); });
 
-// Wischen auf dem Griff oder dem Kopf des Blatts: nach oben = groß, nach unten = klein
-let wischStart = null;
+// Ziehen am Griff oder am Kopf des Blatts: das Blatt folgt dem Finger
+// direkt (wie bei Apple Karten). Beim Loslassen rastet es groß oder klein
+// ein – je nach Schwung, sonst je nachdem, welche Höhe näher liegt.
+let zug = null;   // { y0, h0, y, t, v, bewegt }
 [blattGriff, panelElement.querySelector('header')].forEach(function (flaeche) {
-  flaeche.addEventListener('touchstart', function (e) { wischStart = e.touches[0].clientY; }, { passive: true });
+  flaeche.addEventListener('touchstart', function (e) {
+    if (!istHandy()) return;
+    e.stopPropagation();   // das Wischen im Blatt (unten) soll hier nicht mitmachen
+    blattStart = null;
+    const y = e.touches[0].clientY;
+    zug = { y0: y, h0: panelElement.getBoundingClientRect().height, y: y, t: performance.now(), v: 0, bewegt: false };
+  }, { passive: true });
+
+  flaeche.addEventListener('touchmove', function (e) {
+    if (!zug) return;
+    const y = e.touches[0].clientY;
+    if (!zug.bewegt && Math.abs(y - zug.y0) < 6) return;   // noch Tippen, kein Ziehen
+    zug.bewegt = true;
+    if (e.cancelable) e.preventDefault();
+    const jetzt = performance.now();
+    zug.v = (y - zug.y) / Math.max(1, jetzt - zug.t);       // Pixel pro Millisekunde
+    zug.y = y; zug.t = jetzt;
+    const maxH = window.innerHeight * 0.88;
+    const h = Math.min(maxH, Math.max(120, zug.h0 - (y - zug.y0)));
+    panelElement.classList.add('zieht');
+    panelElement.style.maxHeight = h + 'px';
+  }, { passive: false });
+
   flaeche.addEventListener('touchend', function (e) {
-    if (wischStart === null) return;
-    const weg = e.changedTouches[0].clientY - wischStart;
-    wischStart = null;
-    if (Math.abs(weg) < 20) return;          // kurzes Tippen → "click" übernimmt
-    if (e.cancelable) e.preventDefault();     // kein zusätzlicher Klick
-    setzeBlatt(weg < 0);
+    if (!zug) return;
+    e.stopPropagation();
+    const z = zug;
+    zug = null;
+    if (!z.bewegt) return;                     // kurzes Tippen → "click" übernimmt
+    if (e.cancelable) e.preventDefault();      // kein zusätzlicher Klick
+    const h = panelElement.getBoundingClientRect().height;
+    e.stopPropagation();
+    const klein = Math.max(300, window.innerHeight * 0.38);   // wie --blatt-klein in style.css
+    let gross;
+    if (Math.abs(z.v) > 0.3) gross = z.v < 0;  // schneller Wisch: Richtung zählt
+    else gross = h > (klein + window.innerHeight * 0.88) / 2;
+    // Zieh-Höhe loslassen → weich in die End-Höhe gleiten
+    panelElement.classList.remove('zieht');
+    panelElement.style.maxHeight = '';
+    setzeBlatt(gross);
+  });
+  flaeche.addEventListener('touchcancel', function () {
+    zug = null;
+    panelElement.classList.remove('zieht');
+    panelElement.style.maxHeight = '';
   });
 });
 

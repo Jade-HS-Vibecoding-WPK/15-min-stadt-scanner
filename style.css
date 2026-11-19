@@ -1359,8 +1359,15 @@ path.weg-ziel  { animation: einblenden 0.4s var(--weich) 0.1s both; }
     gap: 10px;
     border-radius: 22px;
     transition: max-height 0.45s cubic-bezier(0.32, 0.72, 0, 1);
+    /* nur nach oben/unten scrollen – nichts lässt sich seitlich verschieben */
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
   }
   #panel.gross { max-height: 88vh; max-height: 88dvh; }
+  /* Während der Finger zieht: Blatt folgt direkt, ohne Verzögerung */
+  #panel.zieht { transition: none; }
+  #panel header { touch-action: none; }
 
   .blatt-griff {
     display: flex;
@@ -1399,10 +1406,13 @@ path.weg-ziel  { animation: einblenden 0.4s var(--weich) 0.1s both; }
   /* Karte: Zoom per zwei Finger → keine +/− Knöpfe. Die übrigen Knöpfe
      als kleine Leiste oben (wie Filter-Chips in Karten-Apps) */
   .leaflet-control-zoom { display: none; }
+  /* Innenabstand, damit Rahmen (aktiver Knopf) und Schatten nicht
+     abgeschnitten werden – die Leiste rückt dafür um denselben Wert nach außen */
   .leaflet-top.leaflet-left {
-    top: calc(env(safe-area-inset-top) + 8px);
-    left: 8px;
-    right: 8px;
+    top: calc(env(safe-area-inset-top) + 2px);
+    left: 2px;
+    right: 2px;
+    padding: 6px 6px 10px;
     display: flex;
     gap: 6px;
     overflow-x: auto;
