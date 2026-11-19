@@ -114,6 +114,7 @@ Es gibt **keine Frameworks und keinen Build-Schritt**: reines HTML, CSS und Java
 | `fonts/` | Inter und IBM Plex Mono (selbst gehostet) |
 | `werkzeuge/` | Skripte, mit denen die Daten aus dem Geofabrik-Auszug gebaut wurden ([Anleitung](werkzeuge/LIESMICH.md)) |
 | `docs/screenshots/` | Bilder für diese README |
+| `docs/qr-code.png` | QR-Code zur Live-Demo (fürs Poster, 2.365 × 2.365 px) |
 | `PLAN.md` | Plan und ausführliche Chronik aller Arbeitsschritte |
 
 ## Quellen und Lizenzen
