@@ -1,6 +1,11 @@
 # Projektziel
 Interaktiver „15-Minuten-Stadt“-Scanner für die städtebauliche Standortanalyse im Architekturstudium.
 
+# Aktueller Stand (für neue Chats zuerst lesen)
+- **`UEBERGABE.md` lesen** – dort stehen Stand, Dateien, Arbeitsweise (Commit/Push, Versionsnummer, Testen) und nächste Schritte.
+- Ausführliche Chronik aller Funktionen: `PLAN.md`.
+- Die Gestaltung unten (Swiss Style, Orange) ist **überholt**: gewählt sind Glas-Look („Frosted Glass“), Apple-Systemfarben (Akzent #007AFF), Schriften Inter + IBM Plex Mono.
+
 # Arbeitsweise & Regeln
 - Ich studiere Architektur im 5. Semester und kann nicht programmieren. Erkläre jeden Schritt einfach und verständlich.
 - Baue immer nur ein kleines Feature pro Schritt und teste es, bevor wir weitermachen.
