@@ -3,3 +3,8 @@
 
 # Lokale Einstellungen von Claude Code
 .claude/
+
+# Poster: nur das PDF gehört ins Repository, die Illustrator-Arbeitsdatei
+# (groß) und Illustrators Zwischendateien beim Speichern nicht
+poster/*.ai
+poster/~ai-*.tmp
