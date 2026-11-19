@@ -289,6 +289,7 @@ function spieleAb(element, klasse) {
 //    Wird vom Klick UND von der Adresssuche benutzt.
 function analysiereStandort(punkt) {
   letzterPunkt = punkt;
+  waehleGebiet(punkt);   // Oldenburg oder (nachgeladen) eine weitere Stadt
 
   // Alte Kreise und alten Marker entfernen
   analyse.clearLayers();
@@ -402,13 +403,14 @@ function gehMinuten(meter) {
 
 // Netz-Datei nachladen (nur einmal, im Hintergrund)
 function ladeNetz() {
-  if (netz || netzLaedt) return;
+  if (OLDENBURG.netz || netzLaedt) return;
   netzLaedt = true;
   zeigeNetzStatus();
   const skript = document.createElement('script');
-  skript.src = 'daten/oldenburg-wege.js?v=2026-11-18f';   // Versionsnummer wie in index.html
+  skript.src = 'daten/oldenburg-wege.js?v=2026-11-19c';   // Versionsnummer wie in index.html
   skript.onload = function () {
-    baueNetz(window.WEGE_NETZ);
+    OLDENBURG.netz = baueNetz(window.WEGE_NETZ, NETZ_LAT0);
+    if (aktivesGebiet === OLDENBURG) netz = OLDENBURG.netz;
     window.WEGE_NETZ = null;   // Rohdaten freigeben
     netzLaedt = false;
     zeigeNetzStatus();
@@ -421,9 +423,10 @@ function ladeNetz() {
 
 // Rohdaten → schnelle Tabellen: Koordinaten, Nachbarn, Längen, Suchraster
 const NETZ_LAT0 = 53.14;
-const NETZ_MX = 111320 * Math.cos(NETZ_LAT0 * Math.PI / 180);  // Meter pro Grad Länge
 const NETZ_MY = 111320;                                         // Meter pro Grad Breite
-function baueNetz(roh) {
+// lat0 = Breitengrad des Gebiets (für die Umrechnung Grad → Meter)
+function baueNetz(roh, lat0) {
+  const NETZ_MX = 111320 * Math.cos(lat0 * Math.PI / 180);       // Meter pro Grad Länge
   const n = roh.knoten.length / 2;
   const lng = new Float64Array(n), lat = new Float64Array(n);
   for (let i = 0; i < n; i++) {
@@ -454,7 +457,7 @@ function baueNetz(roh) {
     if (!liste) raster.set(s, liste = []);
     liste.push(i);
   }
-  netz = { n: n, lng: lng, lat: lat, start: start, nachbarn: nachbarn, laenge: laenge, kanten: k, raster: raster };
+  return { n: n, lng: lng, lat: lat, start: start, nachbarn: nachbarn, laenge: laenge, kanten: k, raster: raster, mx: NETZ_MX };
 }
 function rasterSchluessel(lat, lng) {
   return Math.floor(lng * 1e5 / 300) * 100000 + Math.floor(lat * 1e5 / 180);
@@ -470,7 +473,7 @@ function naechsterKnoten(lat, lng, maxM) {
       if (!liste) continue;
       for (let j = 0; j < liste.length; j++) {
         const i = liste[j];
-        const m = Math.hypot((netz.lng[i] - lng) * NETZ_MX, (netz.lat[i] - lat) * NETZ_MY);
+        const m = Math.hypot((netz.lng[i] - lng) * netz.mx, (netz.lat[i] - lat) * NETZ_MY);
         if (m < besteM) { besteM = m; beste = i; }
       }
     }
@@ -593,7 +596,7 @@ function zeichneNetz(suche) {
     if (da <= grenze && db <= grenze) { liste.push([A, B]); return; }
     // nur ein Teil liegt innerhalb: bis zur Grenze zeichnen
     const [nah, fern, dn, df] = da <= grenze ? [A, B, da, db] : [B, A, db, da];
-    const laenge = Math.hypot((nah[1] - fern[1]) * NETZ_MX, (nah[0] - fern[0]) * NETZ_MY);
+    const laenge = Math.hypot((nah[1] - fern[1]) * netz.mx, (nah[0] - fern[0]) * NETZ_MY);
     const t = Math.min(1, Math.max(0, (grenze - dn) / (laenge || 1)));
     if (df === Infinity || dn + laenge > df) {
       liste.push([nah, [nah[0] + (fern[0] - nah[0]) * t, nah[1] + (fern[1] - nah[1]) * t]]);
@@ -622,6 +625,278 @@ function zeigeNetzStatus(fehler) {
 }
 
 // ------------------------------------------------------------
+// Weitere Städte aus dem „Niedersachsen-Cache“
+//   Oldenburg + Umland kommt wie bisher aus den mitgelieferten Dateien.
+//   Für die Großstädte Niedersachsens (Hannover, Braunschweig, Osnabrück,
+//   Göttingen, Wolfsburg, Salzgitter, Hildesheim, dazu Wilhelmshaven und
+//   Delmenhorst/Bremen) holt die App die Daten aus dem Niedersachsen-Cache
+//   der Kursleitung: fertig vorbereitete OpenStreetMap-Daten auf GitHub
+//   Pages (kostenlos, ohne Key, wöchentlich aus dem Geofabrik-Auszug).
+//   https://github.com/Jade-HS-Vibecoding-WPK/niedersachsen-cache
+//
+//   Geladen wird ein Ausschnitt von ca. 7 × 7 km um den Standort. Daraus
+//   baut die App dieselben Orte (gleiche Regeln wie werkzeuge/extrahiere3.sh)
+//   und dasselbe Fußwegenetz wie für Oldenburg. Ausgewertet wird nur der
+//   innere Teil (ca. 3 × 3 km), damit am Rand nichts fehlt.
+//   Ein „Gebiet“ = { daten (wie OSM_DATEN), netz, name }.
+// ------------------------------------------------------------
+const NDS_URL = 'https://jade-hs-vibecoding-wpk.github.io/niedersachsen-cache/';
+const OLDENBURG = { daten: window.OSM_DATEN, netz: null, name: 'Oldenburg' };
+let aktivesGebiet = OLDENBURG;
+let staedteGebiete = [];          // nachgeladene Ausschnitte (neueste zuerst, höchstens 3)
+let gebietLaedt = null;           // { punkt } solange ein Ausschnitt lädt
+let ndsStaedte = null;            // Städte-Liste des Caches (Name + Umriss-Rechteck)
+let ndsSkript = null;             // Ladevorgang der Bibliothek nds-cache.js
+const ladeVorgaenge = new Map();  // laufende Ladevorgänge (damit nichts doppelt lädt)
+const ohneDaten = new Set();      // Punkte, für die es im Cache nichts gibt
+
+function punktSchluessel(punkt) { return punkt.lat.toFixed(4) + ',' + punkt.lng.toFixed(4); }
+
+function liegtIn(daten, punkt) {
+  const g = daten.gebiet;
+  return punkt.lng >= g[0] && punkt.lng <= g[2] && punkt.lat >= g[1] && punkt.lat <= g[3];
+}
+
+// Welches (schon geladene) Gebiet passt zu diesem Punkt? Oldenburg zuerst.
+function gebietFuer(punkt) {
+  if (OLDENBURG.daten && liegtIn(OLDENBURG.daten, punkt)) return OLDENBURG;
+  return staedteGebiete.find(function (g) { return liegtIn(g.daten, punkt); }) || null;
+}
+
+// Gebiet "einsetzen": alle übrigen Funktionen rechnen dann damit
+function aktiviereGebiet(gebiet, still) {
+  if (gebiet === aktivesGebiet) return;
+  aktivesGebiet = gebiet;
+  window.OSM_DATEN = gebiet.daten;
+  netz = gebiet.netz;
+  if (still) return;
+  if (heatAn) zeigeHeatmap();   // Versorgungskarte für das neue Gebiet
+  // Unterzeile im Panel: "Standortanalyse Hannover" usw.
+  const ort = document.getElementById('titel-ort');
+  if (ort) {
+    ort.dataset.de = 'Standortanalyse ' + gebiet.name;
+    ort.dataset.en = 'Site analysis · ' + gebiet.name;
+    ort.innerHTML = einstellungen.sprache === 'en' ? ort.dataset.en : ort.dataset.de;
+  }
+}
+
+// Vor jeder Analyse: passendes Gebiet einsetzen oder im Hintergrund laden
+function waehleGebiet(punkt) {
+  const gebiet = gebietFuer(punkt);
+  if (gebiet) { gebietLaedt = null; aktiviereGebiet(gebiet); return; }
+  if (ohneDaten.has(punktSchluessel(punkt))) { gebietLaedt = null; return; }
+  gebietLaedt = { punkt: punkt };
+  ladeStadtGebiet(punkt).then(function (neu) {
+    if (!gebietLaedt || gebietLaedt.punkt !== punkt) return;   // inzwischen anderer Standort
+    gebietLaedt = null;
+    if (neu) analysiereStandort(punkt);   // jetzt mit Daten neu rechnen
+    else zaehleInfrastruktur(punkt);      // Hinweis "außerhalb" zeigen
+  });
+}
+
+// Variantenvergleich: Variante in einer noch nicht geladenen Stadt
+function ladeFuerVergleich(punkt) {
+  if (ohneDaten.has(punktSchluessel(punkt)) || ladeVorgaenge.has(punktSchluessel(punkt))) return;
+  ladeStadtGebiet(punkt).then(function (neu) {
+    if (neu && !vergleichFenster.hidden) zeichneVergleich();
+  });
+}
+
+// Lädt den Ausschnitt um den Punkt. Ergebnis: Gebiet oder null.
+function ladeStadtGebiet(punkt) {
+  const schluessel = punktSchluessel(punkt);
+  if (ladeVorgaenge.has(schluessel)) return ladeVorgaenge.get(schluessel);
+  const vorgang = (async function () {
+    try {
+      // Bibliothek des Caches und Städte-Liste (beides nur einmal)
+      if (!ndsSkript) ndsSkript = ladeSkript(NDS_URL + 'nds-cache.js');
+      await ndsSkript;
+      if (!ndsStaedte) {
+        const manifest = await (await fetch(NDS_URL + 'daten/manifest.json')).json();
+        ndsStaedte = manifest.staedte.map(function (s) { return { name: s.name, bbox: s.bbox }; });
+      }
+      const stadt = ndsStaedte.find(function (s) {
+        return punkt.lng >= s.bbox[0] && punkt.lng <= s.bbox[2] && punkt.lat >= s.bbox[1] && punkt.lat <= s.bbox[3];
+      });
+      if (!stadt) { ohneDaten.add(schluessel); return null; }
+
+      // Erst großer Ausschnitt; am Stadtrand (Cache endet) kleiner versuchen
+      const versuche = [3500, 2500, 1500];   // halbe Breite in Metern
+      for (let i = 0; i < versuche.length; i++) {
+        const halb = versuche[i];
+        const antwort = await NdsCache.overpass(cacheAbfrage(rechteck(punkt, halb)));
+        if (!antwort) continue;   // Ausschnitt nicht ganz im Cache
+        const gebiet = baueStadtGebiet(antwort, punkt, halb, stadt.name);
+        staedteGebiete.unshift(gebiet);
+        if (staedteGebiete.length > 3) staedteGebiete.pop();   // Speicher schonen
+        return gebiet;
+      }
+      ohneDaten.add(schluessel);
+      return null;
+    } catch (fehler) {
+      console.warn('Niedersachsen-Cache:', fehler);
+      return null;
+    } finally {
+      ladeVorgaenge.delete(schluessel);
+    }
+  })();
+  ladeVorgaenge.set(schluessel, vorgang);
+  return vorgang;
+}
+
+// Rechteck [West, Süd, Ost, Nord] mit halber Breite "halb" (Meter) um den Punkt
+function rechteck(punkt, halb) {
+  const dLat = halb / 111320;
+  const dLng = halb / (111320 * Math.cos(punkt.lat * Math.PI / 180));
+  return [punkt.lng - dLng, punkt.lat - dLat, punkt.lng + dLng, punkt.lat + dLat];
+}
+
+// Gleiche Kategorien wie in werkzeuge/extrahiere3.sh
+const NDS_GESUNDHEIT = ['doctors', 'pharmacy', 'dentist', 'clinic', 'hospital'];
+const NDS_KULTUR = ['cafe', 'library', 'theatre', 'cinema', 'arts_centre', 'community_centre'];
+const NDS_KEIN_FUSSWEG = ['track', 'service', 'bridleway', 'road', 'corridor', 'motorway', 'motorway_link',
+  'construction', 'proposed', 'abandoned', 'platform', 'bus_stop', 'raceway', 'elevator', 'rest_area', 'services'];
+
+// Overpass-Abfrage, die der Cache selbst beantwortet
+function cacheAbfrage(r) {
+  const bb = '(' + [r[1], r[0], r[3], r[2]].map(function (z) { return z.toFixed(5); }).join(',') + ')';
+  return '[out:json];(' +
+    'node["highway"="bus_stop"]' + bb + ';' +
+    'node["public_transport"="platform"]' + bb + ';' +
+    'node["railway"~"^(station|halt|tram_stop)$"]' + bb + ';' +
+    'nwr["shop"~"^(supermarket|bakery)$"]' + bb + ';' +
+    'nwr["amenity"~"^(kindergarten|school|' + NDS_GESUNDHEIT.concat(NDS_KULTUR).join('|') + ')$"]' + bb + ';' +
+    'nwr["leisure"~"^(park|playground)$"]' + bb + ';' +
+    'way["highway"]' + bb + ';' +
+    ');out geom;';
+}
+
+// Kategorie eines OSM-Objekts (null = gehört nicht dazu)
+function ndsKategorie(t, flaeche) {
+  if (t.shop === 'supermarket' || t.shop === 'bakery') return 'versorgung';
+  if (t.amenity === 'kindergarten' || t.amenity === 'school') return 'bildung';
+  if (NDS_GESUNDHEIT.indexOf(t.amenity) >= 0) return 'gesundheit';
+  if (NDS_KULTUR.indexOf(t.amenity) >= 0) return 'kultur';
+  if (t.leisure === 'playground') return 'spielplatz';
+  if (flaeche) return t.leisure === 'park' ? 'gruen' : null;
+  if (t.highway === 'bus_stop' || t.public_transport === 'platform' ||
+      ['station', 'halt', 'tram_stop'].indexOf(t.railway) >= 0) return 'oepnv';
+  return null;
+}
+
+// Linienstücke [[lng, lat], …] zu geschlossenen Ringen zusammensetzen
+function gleicherPunkt(a, b) { return a[0] === b[0] && a[1] === b[1]; }
+function baueRinge(stuecke) {
+  const rest = stuecke.filter(function (s) { return s.length >= 2; });
+  const ringe = [];
+  while (rest.length) {
+    let ring = rest.shift();
+    let sicher = 0;
+    while (!gleicherPunkt(ring[0], ring[ring.length - 1]) && sicher++ < 2000) {
+      const ende = ring[ring.length - 1];
+      const i = rest.findIndex(function (s) { return gleicherPunkt(s[0], ende) || gleicherPunkt(s[s.length - 1], ende); });
+      if (i < 0) break;
+      let s = rest.splice(i, 1)[0];
+      if (!gleicherPunkt(s[0], ende)) s = s.slice().reverse();
+      ring = ring.concat(s.slice(1));
+    }
+    if (ring.length >= 4 && gleicherPunkt(ring[0], ring[ring.length - 1])) ringe.push(ring);
+  }
+  return ringe;
+}
+function alsKoordinaten(geometrie) {
+  const liste = [];
+  (geometrie || []).forEach(function (p) { if (p) liste.push([+p.lon.toFixed(6), +p.lat.toFixed(6)]); });
+  return liste;
+}
+function mittelpunkt(ringe) {
+  let x = 0, y = 0, n = 0;
+  ringe.forEach(function (r) { r.forEach(function (c) { x += c[0]; y += c[1]; n++; }); });
+  return [+(x / n).toFixed(6), +(y / n).toFixed(6)];
+}
+
+// Overpass-Antwort → Gebiet (Orte im Format von OSM_DATEN + Fußwegenetz)
+function baueStadtGebiet(antwort, punkt, halb, stadtName) {
+  const features = [];
+  const gesehen = new Set();
+  const wege = [];
+  antwort.elements.forEach(function (el) {
+    const t = el.tags || {};
+    const id = el.type + '/' + el.id;
+    // Wege für das Fußwegenetz
+    if (el.type === 'way' && t.highway && NDS_KEIN_FUSSWEG.indexOf(t.highway) < 0 && t.foot !== 'no') {
+      wege.push(el.geometry || []);
+    }
+    if (gesehen.has(id)) return;
+    let kat = null, geometrie = null;
+    if (el.type === 'node') {
+      kat = ndsKategorie(t, false);
+      if (kat) geometrie = { type: 'Point', coordinates: [+el.lon.toFixed(6), +el.lat.toFixed(6)] };
+    } else {
+      kat = ndsKategorie(t, true);
+      if (!kat) return;
+      let ringe = [];
+      if (el.type === 'way') {
+        const ring = alsKoordinaten(el.geometry);
+        if (ring.length >= 4 && gleicherPunkt(ring[0], ring[ring.length - 1])) ringe = [ring];
+      } else if (t.type === 'multipolygon') {
+        ringe = baueRinge((el.members || []).filter(function (m) {
+          return m.type === 'way' && m.role !== 'inner';
+        }).map(function (m) { return alsKoordinaten(m.geometry); }));
+      }
+      if (!ringe.length) return;
+      geometrie = kat === 'gruen'
+        ? { type: 'MultiPolygon', coordinates: ringe.map(function (r) { return [r]; }) }
+        : { type: 'Point', coordinates: mittelpunkt(ringe) };
+    }
+    if (!geometrie) return;
+    gesehen.add(id);
+    const eig = { kat: kat, osm_id: id };
+    if (t.name) eig.name = t.name;
+    const typ = kat === 'gruen' ? 'park'
+      : (el.type === 'node' ? (t.shop || t.amenity || t.leisure || t.railway || t.highway || t.public_transport)
+                            : (t.shop || t.amenity || t.leisure));
+    if (typ) eig.typ = typ;
+    if (el.type === 'node' && t.route_ref) eig.linien = t.route_ref;
+    features.push({ type: 'Feature', properties: eig, geometry: geometrie });
+  });
+
+  // Fußwegenetz: gemeinsame Punkte (auf ca. 1 m gerundet) werden zu Knoten
+  const knotenNr = new Map();
+  const knoten = [], kanten = [];
+  function nr(p) {
+    const x = Math.round(p.lon * 1e5), y = Math.round(p.lat * 1e5);
+    const s = x * 1e8 + y;
+    let i = knotenNr.get(s);
+    if (i === undefined) { i = knoten.length / 2; knotenNr.set(s, i); knoten.push(x, y); }
+    return i;
+  }
+  wege.forEach(function (geo) {
+    let vorher = -1;
+    geo.forEach(function (p) {
+      if (!p) { vorher = -1; return; }   // Teil ohne Geometrie (außerhalb)
+      const i = nr(p);
+      if (vorher >= 0 && vorher !== i) kanten.push(vorher, i);
+      vorher = i;
+    });
+  });
+
+  // Ausgewertet wird nur der innere Teil – am Rand fehlen sonst Ziele
+  const innen = rechteck(punkt, Math.max(500, halb - 2000));
+  const stand = String(NdsCache.stand || '').slice(0, 10).split('-').reverse().join('.');
+  return {
+    name: stadtName,
+    daten: {
+      datenstand: stand + ' (Niedersachsen-Cache)',
+      gebiet: innen,
+      features: features,
+      stadt: stadtName
+    },
+    netz: knoten.length ? baueNetz({ ursprung: [0, 0], knoten: knoten, kanten: kanten }, punkt.lat) : null
+  };
+}
+
+// ------------------------------------------------------------
 // Infrastruktur zählen – aus der mitgelieferten Datei
 // daten/oldenburg-osm.js (OpenStreetMap-Auszug, einmal heruntergeladen).
 // Vorteil: kein Server nötig, sofort fertig, immer verfügbar.
@@ -638,9 +913,15 @@ function zaehleInfrastruktur(punkt) {
   // Daten nicht geladen oder Standort außerhalb des Datengebiets?
   if (!window.OSM_DATEN || !imDatengebiet(punkt)) {
     zeigeBewertung(null);
+    if (gebietLaedt && gebietLaedt.punkt === punkt) {
+      // weitere Stadt: Daten kommen gerade aus dem Niedersachsen-Cache
+      status.textContent = tx('Daten werden aus dem Niedersachsen-Cache geladen …',
+                              'Loading data from the Lower Saxony cache …');
+      return;
+    }
     status.textContent = window.OSM_DATEN
-      ? tx('Außerhalb des Datengebiets – Infrastruktur nur für Oldenburg und Umgebung verfügbar.',
-           'Outside the data area – amenities are only available for Oldenburg and surroundings.')
+      ? tx('Außerhalb des Datengebiets – Infrastruktur gibt es für Oldenburg + Umland und die Großstädte Niedersachsens.',
+           'Outside the data area – amenities are available for Oldenburg and surroundings and the major cities of Lower Saxony.')
       : tx('Infrastruktur-Daten konnten nicht geladen werden.', 'Amenity data could not be loaded.');
     return;
   }
@@ -701,9 +982,18 @@ function zaehle(punkt, suche) {
 }
 
 // Bewertung für einen beliebigen Punkt (null = außerhalb des Datengebiets)
+//   Varianten können in verschiedenen Städten liegen: kurz das passende
+//   Gebiet einsetzen, rechnen, danach das aktuelle Gebiet zurückholen.
 function bewerteOrt(punkt) {
-  if (!window.OSM_DATEN || !imDatengebiet(punkt)) return null;
-  return berechneBewertung(zaehle(punkt).zaehler);
+  const gebiet = gebietFuer(punkt);
+  if (!gebiet) { ladeFuerVergleich(punkt); return null; }
+  const vorher = aktivesGebiet;
+  aktiviereGebiet(gebiet, true);
+  try {
+    return berechneBewertung(zaehle(punkt).zaehler);
+  } finally {
+    aktiviereGebiet(vorher, true);
+  }
 }
 
 // ------------------------------------------------------------
@@ -1478,7 +1768,8 @@ pdfKnopf.addEventListener('click', async function () {
     let y = RAND + 3;
 
     // Kleine Überschrift + Titel
-    grauerText(pdf, tx('STANDORTANALYSE OLDENBURG', 'SITE ANALYSIS · OLDENBURG'), x, y);
+    const ortName = aktivesGebiet.name.toUpperCase();
+    grauerText(pdf, tx('STANDORTANALYSE ' + ortName, 'SITE ANALYSIS · ' + ortName), x, y);
     y += 10;
     pdf.setFont('helvetica', 'bold');
     pdf.setFontSize(26);
